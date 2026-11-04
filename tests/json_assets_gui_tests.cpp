@@ -2,6 +2,7 @@
 #include "gui.h"
 #include "items.h"
 #include "backlands_assets.h"
+#include <wx/imagpng.h>
 #include <chrono>
 #include <filesystem>
 #include <fstream>
@@ -19,7 +20,7 @@ int RunMultiplayerSessionTests(int argc, char** argv) {
 		return 1;
 	}
 	wxLog::SetActiveTarget(new wxLogStderr());
-	wxInitAllImageHandlers();
+	wxImage::AddHandler(new wxPNGHandler());
 	const auto root = fs::temp_directory_path() / ("backlands-json-gui-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
 	fs::create_directories(root);
 	int result = 0;
