@@ -32,11 +32,15 @@ int main(int argc, char** argv) {
 		const Json manifest = { { "format", "backlands.assets" }, { "version", 1 }, { "tileSize", 16 }, { "map", "world.otbm" }, { "configuration", "config.json" }, { "catalogs", Json::array({ { { "namespace", "terrain" }, { "file", "items.json" } } }) } };
 		write(root / "assets.json", manifest);
 		check(backlands::Assets::load(root).catalogs[0].items[0]["id"] == 100);
+		catalog["items"][0]["flags"]["season"] = 0;
+		catalog["items"][0]["seasonGroup"] = "test";
+		write(root / "items.json", catalog);
+		check(backlands::Assets::load(root).catalogs[0].items[0]["flags"]["season"] == 0);
 		const auto detected = ServerResourceDetector::Detect(root);
 		check(detected.validRoot && detected.workspace.hasRequiredResources());
 		check(detected.workspace.itemIdMode == ItemIdMode::ServerId);
 		check(!detected.workspace.hasItemsOtb() && !detected.workspace.trackedResourcesChanged());
-		for (int scenario = 0; scenario < 5; scenario++) {
+		for (int scenario = 0; scenario < 6; scenario++) {
 			auto invalid = catalog;
 			if (scenario == 0) {
 				invalid["items"][0]["frameGroups"][0]["sprites"][0] = 2;
@@ -52,6 +56,9 @@ int main(int argc, char** argv) {
 			}
 			if (scenario == 4) {
 				invalid["sheets"][0]["columns"] = 2;
+			}
+			if (scenario == 5) {
+				invalid["items"][0]["flags"]["season"] = 4;
 			}
 			write(root / "items.json", invalid);
 			check(detected.workspace.trackedResourcesChanged());

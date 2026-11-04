@@ -51,8 +51,10 @@ namespace backlands {
 					if (!thing["flags"].is_object()) {
 						throw std::runtime_error("Invalid flags object");
 					}
-					for (const auto& flag : thing["flags"]) {
-						if (!flag.is_boolean()) {
+					for (const auto& [name, flag] : thing["flags"].items()) {
+						if (name == "season") {
+							integer(flag, 0, 3, "season flag");
+						} else if (!flag.is_boolean()) {
 							throw std::runtime_error("Invalid boolean flag");
 						}
 					}
