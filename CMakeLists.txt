@@ -242,6 +242,12 @@ if(BUILD_TESTING)
 	target_link_libraries(waypoint_groups_tests PRIVATE editor_test_objects)
 	add_test(NAME waypoint_groups_tests COMMAND waypoint_groups_tests)
 	set_tests_properties(waypoint_groups_tests PROPERTIES TIMEOUT 30)
+	if(WIN32)
+		add_executable(json_assets_gui_tests tests/json_assets_gui_tests.cpp)
+		target_link_libraries(json_assets_gui_tests PRIVATE editor_test_objects)
+		add_test(NAME json_assets_gui_tests COMMAND json_assets_gui_tests)
+		set_tests_properties(json_assets_gui_tests PROPERTIES TIMEOUT 30)
+	endif()
 
 	option(ENABLE_MULTIPLAYER_SESSION_TESTS "Build full editor wxSocket session integration tests (no visible windows)" OFF)
 	if(ENABLE_MULTIPLAYER_SESSION_TESTS)
@@ -512,6 +518,11 @@ if(BUILD_TESTING)
 		CXX_STANDARD_REQUIRED ON
 	)
 	add_test(NAME server_workspace_tests COMMAND server_workspace_tests)
+	add_executable(backlands_assets_tests tests/backlands_assets_tests.cpp source/backlands_assets.cpp source/server_workspace.cpp)
+	target_include_directories(backlands_assets_tests PRIVATE source)
+	target_link_libraries(backlands_assets_tests PRIVATE nlohmann_json::nlohmann_json)
+	target_compile_features(backlands_assets_tests PRIVATE cxx_std_20)
+	add_test(NAME backlands_assets_tests COMMAND backlands_assets_tests)
 
 	add_executable(editor_data_layout_tests
 		tests/editor_data_layout_tests.cpp

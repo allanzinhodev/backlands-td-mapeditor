@@ -833,75 +833,80 @@ bool GUI::LoadDataFiles(wxString& error, wxArrayString& warnings) {
 
 	g_gui.gfx.client_version = getLoadedVersion();
 
-    const ServerWorkspace& workspace=g_workspace.getServer();
-    if(!workspace.jsonAssetsPath.empty()){
-        g_gui.CreateLoadBar("Loading Backlands JSON assets");
-        try {
-            const auto assets=backlands::Assets::load(workspace.rootPath);
-            g_gui.SetLoadDone(10,"Loading Backlands JSON and PNG assets...");
-            if(!g_gui.gfx.loadJsonAssets(assets,error)||!g_items.loadJsonAssets(assets,error)){
-                g_gui.DestroyLoadBar();UnloadVersion();return false;
-            }
-        }catch(const std::exception& e){error=wxString::FromUTF8(e.what());g_gui.DestroyLoadBar();UnloadVersion();return false;}
-    }else {
-	if (!g_gui.gfx.loadOTFI(client_path.GetPath(wxPATH_GET_VOLUME | wxPATH_GET_SEPARATOR), error, warnings)) {
-		error = "Couldn't load otfi file: " + error;
-		g_gui.DestroyLoadBar();
-		UnloadVersion();
-		return false;
-	}
-
-	g_gui.CreateLoadBar("Loading asset files");
-	g_gui.SetLoadDone(0, "Loading metadata file...");
-
-	wxFileName metadata_path = g_gui.gfx.getMetadataFileName();
-	if (!g_gui.gfx.loadSpriteMetadata(metadata_path, error, warnings)) {
-		error = "Couldn't load metadata: " + error;
-		g_gui.DestroyLoadBar();
-		UnloadVersion();
-		return false;
-	}
-
-	g_gui.SetLoadDone(10, "Loading sprites file...");
-
-	wxFileName sprites_path = g_gui.gfx.getSpritesFileName();
-	if (!g_gui.gfx.loadSpriteData(sprites_path.GetFullPath(), error, warnings)) {
-		error = "Couldn't load sprites: " + error;
-		g_gui.DestroyLoadBar();
-		UnloadVersion();
-		return false;
-	}
-
-
-	if (!workspace.hasItemsOtb()) {
-		error = "Server Workspace is configured, but items.otb was not found. NexaMap will not use a bundled item database.";
-		g_gui.DestroyLoadBar();
-		UnloadVersion();
-		return false;
-	}
-	const wxString itemsOtbPath = WorkspacePath(workspace.itemsOtbPath);
-	const bool loadItemsXml = workspace.hasItemsXml();
-	const wxString itemsXmlPath = loadItemsXml ? WorkspacePath(workspace.itemsXmlPath) : wxString {};
-
-	g_gui.SetLoadDone(20, "Loading server items.otb...");
-	if (!g_items.loadFromOtb(itemsOtbPath, error, warnings)) {
-		error = "Couldn't load items.otb: " + error;
-		g_gui.DestroyLoadBar();
-		UnloadVersion();
-		return false;
-	}
-
-	if (loadItemsXml) {
-		g_gui.SetLoadDone(30, "Loading server items.xml...");
-		if (!g_items.loadFromGameXml(itemsXmlPath, error, warnings)) {
-			warnings.push_back("Couldn't load items.xml: " + error);
+	const ServerWorkspace& workspace = g_workspace.getServer();
+	if (!workspace.jsonAssetsPath.empty()) {
+		g_gui.CreateLoadBar("Loading Backlands JSON assets");
+		try {
+			const auto assets = backlands::Assets::load(workspace.rootPath);
+			g_gui.SetLoadDone(10, "Loading Backlands JSON and PNG assets...");
+			if (!g_gui.gfx.loadJsonAssets(assets, error) || !g_items.loadJsonAssets(assets, error)) {
+				g_gui.DestroyLoadBar();
+				UnloadVersion();
+				return false;
+			}
+		} catch (const std::exception& e) {
+			error = wxString::FromUTF8(e.what());
+			g_gui.DestroyLoadBar();
+			UnloadVersion();
+			return false;
 		}
 	} else {
-		g_gui.SetLoadDone(30, "Server items.xml not found; continuing with items.otb...");
-		warnings.push_back("Server items.xml was not found. The workspace loaded directly from items.otb without optional XML metadata.");
-	}
+		if (!g_gui.gfx.loadOTFI(client_path.GetPath(wxPATH_GET_VOLUME | wxPATH_GET_SEPARATOR), error, warnings)) {
+			error = "Couldn't load otfi file: " + error;
+			g_gui.DestroyLoadBar();
+			UnloadVersion();
+			return false;
+		}
 
-    }
+		g_gui.CreateLoadBar("Loading asset files");
+		g_gui.SetLoadDone(0, "Loading metadata file...");
+
+		wxFileName metadata_path = g_gui.gfx.getMetadataFileName();
+		if (!g_gui.gfx.loadSpriteMetadata(metadata_path, error, warnings)) {
+			error = "Couldn't load metadata: " + error;
+			g_gui.DestroyLoadBar();
+			UnloadVersion();
+			return false;
+		}
+
+		g_gui.SetLoadDone(10, "Loading sprites file...");
+
+		wxFileName sprites_path = g_gui.gfx.getSpritesFileName();
+		if (!g_gui.gfx.loadSpriteData(sprites_path.GetFullPath(), error, warnings)) {
+			error = "Couldn't load sprites: " + error;
+			g_gui.DestroyLoadBar();
+			UnloadVersion();
+			return false;
+		}
+
+		if (!workspace.hasItemsOtb()) {
+			error = "Server Workspace is configured, but items.otb was not found. NexaMap will not use a bundled item database.";
+			g_gui.DestroyLoadBar();
+			UnloadVersion();
+			return false;
+		}
+		const wxString itemsOtbPath = WorkspacePath(workspace.itemsOtbPath);
+		const bool loadItemsXml = workspace.hasItemsXml();
+		const wxString itemsXmlPath = loadItemsXml ? WorkspacePath(workspace.itemsXmlPath) : wxString {};
+
+		g_gui.SetLoadDone(20, "Loading server items.otb...");
+		if (!g_items.loadFromOtb(itemsOtbPath, error, warnings)) {
+			error = "Couldn't load items.otb: " + error;
+			g_gui.DestroyLoadBar();
+			UnloadVersion();
+			return false;
+		}
+
+		if (loadItemsXml) {
+			g_gui.SetLoadDone(30, "Loading server items.xml...");
+			if (!g_items.loadFromGameXml(itemsXmlPath, error, warnings)) {
+				warnings.push_back("Couldn't load items.xml: " + error);
+			}
+		} else {
+			g_gui.SetLoadDone(30, "Server items.xml not found; continuing with items.otb...");
+			warnings.push_back("Server items.xml was not found. The workspace loaded directly from items.otb without optional XML metadata.");
+		}
+	}
 
 	g_gui.SetLoadIndeterminate("Loading creatures.xml ...");
 	if (!g_creatures.loadFromXML(editorDataDirectory + "creatures.xml", true, error, warnings, creatureProgress)) {

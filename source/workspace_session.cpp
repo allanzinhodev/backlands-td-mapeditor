@@ -58,9 +58,8 @@ namespace {
 		workspace.mapsDirectory = selected->path.parent_path();
 		workspace.serverType = selected->serverType;
 		workspace.serverProfile = ServerTypeName(selected->serverType);
-		workspace.itemIdMode = !workspace.jsonAssetsPath.empty() ? ItemIdMode::ServerId : workspace.usesCanaryCrystalLoader()
-			? ItemIdMode::ClientId
-			: (workspace.serverType == ServerType::Tfs ? ItemIdMode::ServerId : ItemIdMode::Unknown);
+		workspace.itemIdMode = !workspace.jsonAssetsPath.empty() ? ItemIdMode::ServerId : workspace.usesCanaryCrystalLoader() ? ItemIdMode::ClientId
+																															  : (workspace.serverType == ServerType::Tfs ? ItemIdMode::ServerId : ItemIdMode::Unknown);
 		return true;
 	}
 }
@@ -262,9 +261,11 @@ bool WorkspaceSession::restoreCompatibleClient(wxString& error, wxArrayString& w
 	error.clear();
 	warnings.clear();
 	if (hasCompatibleServerResources()) {
-        return true;
-    }
-    if(!server.jsonAssetsPath.empty())return configureClient(FromFilesystemPath(server.rootPath),error,warnings,persist);
+		return true;
+	}
+	if (!server.jsonAssetsPath.empty()) {
+		return configureClient(FromFilesystemPath(server.rootPath), error, warnings, persist);
+	}
 	if (server.usesCanaryCrystalLoader()) {
 		const wxString savedPath = wxstr(g_settings.getString(Config::CANARY_CRYSTAL_ASSETS_DIRECTORY));
 		if (savedPath.empty()) {

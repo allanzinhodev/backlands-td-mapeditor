@@ -37,7 +37,9 @@ class RAWBrush;
 
 class ItemType;
 class GameSprite;
-namespace backlands { struct Assets; }
+namespace backlands {
+	struct Assets;
+}
 class ItemDatabase;
 
 namespace rme {

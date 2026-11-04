@@ -585,7 +585,9 @@ const DetectedMap* ServerWorkspace::findMap(const std::filesystem::path& path) c
 }
 
 bool ServerWorkspace::trackedResourcesChanged() const {
-    if(std::any_of(jsonFiles.begin(),jsonFiles.end(),[](const auto& file){return !file.MatchesCurrentFile();}))return true;
+	if (std::any_of(jsonFiles.begin(), jsonFiles.end(), [](const auto& file) { return !file.MatchesCurrentFile(); })) {
+		return true;
+	}
 	if (!itemsOtbPath.empty() && !itemsOtbFingerprint.MatchesCurrentFile()) {
 		return true;
 	}
@@ -601,21 +603,29 @@ bool ServerWorkspace::trackedResourcesChanged() const {
 }
 
 ServerDetectionResult ServerResourceDetector::Detect(const std::filesystem::path& requestedRoot, const ServerDetectionOptions& options) {
-    if(std::filesystem::is_regular_file(requestedRoot/"assets.json")){
-        ServerDetectionResult result;
-        try {
-            const auto assets=backlands::Assets::load(requestedRoot);
-            auto& workspace=result.workspace;
-            workspace.rootPath=assets.root;workspace.jsonAssetsPath=assets.root/"assets.json";
-            workspace.activeDataDirectory=assets.root/"resources";workspace.mapsDirectory=assets.map.parent_path();
-            workspace.primaryMapPath=assets.map;workspace.serverProfile="Backlands JSON";workspace.protocol="backlands-json-v1";
-            workspace.itemIdMode=ItemIdMode::ServerId;
-            workspace.maps.push_back({assets.map,ResourceFingerprint::Read(assets.map),assets.root,ServerType::UnknownGeneric});
-            for(const auto& file:assets.files)workspace.jsonFiles.push_back(ResourceFingerprint::Read(file));
-            result.validRoot=true;
-        }catch(const std::exception& e){result.error=e.what();}
-        return result;
-    }
+	if (std::filesystem::is_regular_file(requestedRoot / "assets.json")) {
+		ServerDetectionResult result;
+		try {
+			const auto assets = backlands::Assets::load(requestedRoot);
+			auto& workspace = result.workspace;
+			workspace.rootPath = assets.root;
+			workspace.jsonAssetsPath = assets.root / "assets.json";
+			workspace.activeDataDirectory = assets.root / "resources";
+			workspace.mapsDirectory = assets.map.parent_path();
+			workspace.primaryMapPath = assets.map;
+			workspace.serverProfile = "Backlands JSON";
+			workspace.protocol = "backlands-json-v1";
+			workspace.itemIdMode = ItemIdMode::ServerId;
+			workspace.maps.push_back({ assets.map, ResourceFingerprint::Read(assets.map), assets.root, ServerType::UnknownGeneric });
+			for (const auto& file : assets.files) {
+				workspace.jsonFiles.push_back(ResourceFingerprint::Read(file));
+			}
+			result.validRoot = true;
+		} catch (const std::exception& e) {
+			result.error = e.what();
+		}
+		return result;
+	}
 
 	TraceServerScan(options, "Normalizing server root", requestedRoot);
 	ServerDetectionResult result;
