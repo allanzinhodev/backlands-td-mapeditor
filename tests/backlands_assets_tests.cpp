@@ -4,12 +4,13 @@
 #include <iostream>
 #include <chrono>
 #include <stdexcept>
+#include <source_location>
 
 using Json = nlohmann::json;
 namespace fs = std::filesystem;
-void check(bool ok) {
+void check(bool ok, const std::source_location& location = std::source_location::current()) {
 	if (!ok) {
-		throw std::runtime_error("JSON asset contract failed");
+		throw std::runtime_error("JSON asset contract failed at line " + std::to_string(location.line()));
 	}
 }
 void write(const fs::path& path, const Json& value) {
@@ -61,6 +62,9 @@ int main(int argc, char** argv) {
 				invalid["items"][0]["flags"]["season"] = 4;
 			}
 			write(root / "items.json", invalid);
+			// Deterministic metadata change even on filesystems that coalesce
+			// several same-size writes into one timestamp tick.
+			fs::last_write_time(root / "items.json", fs::file_time_type::clock::now() + std::chrono::seconds(scenario + 1));
 			check(detected.workspace.trackedResourcesChanged());
 			bool rejected = false;
 			try {
@@ -78,9 +82,10 @@ int main(int argc, char** argv) {
 			std::cout << "Real game JSON catalogs and PNG dimensions validated\n";
 		}
 		fs::remove_all(root);
-	} catch (...) {
+	} catch (const std::exception& error) {
+		std::cerr << error.what() << '\n';
 		fs::remove_all(root);
-		throw;
+		return 1;
 	}
 	std::cout << "JSON asset contracts passed\n";
 }
