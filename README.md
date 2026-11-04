@@ -1,3 +1,29 @@
+# Backlands TD Map Editor
+
+Editor de mapas do Backlands, baseado no NexaMap Editor.
+
+Esta base preserva o codigo-fonte, o historico e a licenca original do NexaMap.
+O catalogo classico inicia vazio para voce criar seus proprios pinceis, bordas,
+paredes, categorias e criaturas. Os itens DAT/SPR continuam acessiveis em
+RAW/Others quando os recursos do seu projeto forem carregados.
+As extensoes padrao do Tibia foram removidas desta configuracao inicial.
+
+- Base: https://github.com/Mateuzkl/NexaMap-Editor
+- Commit de origem: `3b052c1`.
+- Dados editaveis do catalogo: `data/editor/`.
+- Extensoes personalizadas: `extensions/`.
+- Compilacao Windows: workflow **Build Windows** em Actions (x64 e x86).
+- Binarios DAT/SPR, mapas, configuracoes pessoais, caches e executaveis locais
+  nao acompanham o codigo-fonte.
+
+O arquivo `data/editor/materials.xml` inclui os catalogos vazios de terrenos,
+bordas, paredes, decoracoes e categorias. Edite esses arquivos para montar a
+organizacao do Backlands. Os metaitens internos do editor foram preservados.
+
+A documentacao original do NexaMap e suas instrucoes de compilacao seguem abaixo.
+
+---
+
 <p align="center">
   <a href="https://mateuzkl.github.io/NexaMap-Showcase/">
     <img src="https://i.postimg.cc/1583dKFy/Chat-GPT-Image-17-de-ago-de-2026-10-00-00.png" alt="NexaMap Editor" width="760" />

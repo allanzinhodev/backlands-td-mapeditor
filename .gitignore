@@ -79,3 +79,21 @@ cmake-build-debug/
 
 # AI prompts
 NexaMap_AI_STYLE_REFERENCE_FULL_PROMPT.md
+
+# Backlands local workspace, credentials and runtime data
+.cache/
+.tools/
+node_modules/
+dist/
+.vcpkg/
+vcpkg-downloads/
+vcpkg-binary-cache/
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.pfx
+*.p12
+*.otbm
+*.otgz
