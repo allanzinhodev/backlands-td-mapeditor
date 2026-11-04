@@ -17,6 +17,7 @@
 
 #ifndef RME_GRAPHICS_H_
 #define RME_GRAPHICS_H_
+#include "backlands_assets.h"
 
 #include "session_id.h"
 #include "atlas_page_epochs.h"
@@ -195,6 +196,7 @@ protected:
 		uint16_t size;
 		uint8_t* dump;
 		bool fromAssets = false;
+		std::vector<uint8_t> jsonPixels;
 		uint8_t assetCropX = 0;
 		uint8_t assetCropY = 0;
 
@@ -394,6 +396,7 @@ public:
 	uint8_t normalizeSpriteFlag(uint8_t flag) const;
 	void readSpriteFlagData(uint8_t flag, uint8_t prev_flag, FileReadHandle& file, GameSprite* sType, wxArrayString& warnings);
 	bool loadSpriteData(const FileName& datafile, wxString& error, wxArrayString& warnings);
+	bool loadJsonAssets(const backlands::Assets& assets, wxString& error);
 	bool loadAppearanceItem(const rme::protobuf::appearances::Appearance& appearance, ItemType* item, wxString& error, wxArrayString& warnings);
 	bool loadAppearanceOutfit(const rme::protobuf::appearances::Appearance& appearance, wxString& error, wxArrayString& warnings);
 

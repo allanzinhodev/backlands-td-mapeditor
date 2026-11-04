@@ -117,10 +117,10 @@
 #define MAP_MAX_LAYER 15
 
 // The size of the tile in pixels
-constexpr int TileSize = 32;
+constexpr int TileSize = 16;
 
 // The default size of sprites
-#define SPRITE_PIXELS 32
+#define SPRITE_PIXELS 16
 #define SPRITE_PIXELS_SIZE SPRITE_PIXELS* SPRITE_PIXELS
 
 // The sea layer

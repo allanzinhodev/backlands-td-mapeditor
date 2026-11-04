@@ -183,7 +183,7 @@ namespace {
 		}
 		error.clear();
 		const ServerWorkspace& workspace = g_workspace.getServer();
-		if (expectedClientMode == WorkspaceClientMode::Classic && !workspace.hasItemsOtb()) {
+		if (expectedClientMode == WorkspaceClientMode::Classic && workspace.jsonAssetsPath.empty() && !workspace.hasItemsOtb()) {
 			error = "This classic DAT/SPR client requires items.otb in the selected Server Workspace. appearances.dat is supported by Canary/Crystal clients.";
 			return false;
 		}
@@ -833,6 +833,17 @@ bool GUI::LoadDataFiles(wxString& error, wxArrayString& warnings) {
 
 	g_gui.gfx.client_version = getLoadedVersion();
 
+    const ServerWorkspace& workspace=g_workspace.getServer();
+    if(!workspace.jsonAssetsPath.empty()){
+        g_gui.CreateLoadBar("Loading Backlands JSON assets");
+        try {
+            const auto assets=backlands::Assets::load(workspace.rootPath);
+            g_gui.SetLoadDone(10,"Loading Backlands JSON and PNG assets...");
+            if(!g_gui.gfx.loadJsonAssets(assets,error)||!g_items.loadJsonAssets(assets,error)){
+                g_gui.DestroyLoadBar();UnloadVersion();return false;
+            }
+        }catch(const std::exception& e){error=wxString::FromUTF8(e.what());g_gui.DestroyLoadBar();UnloadVersion();return false;}
+    }else {
 	if (!g_gui.gfx.loadOTFI(client_path.GetPath(wxPATH_GET_VOLUME | wxPATH_GET_SEPARATOR), error, warnings)) {
 		error = "Couldn't load otfi file: " + error;
 		g_gui.DestroyLoadBar();
@@ -861,7 +872,7 @@ bool GUI::LoadDataFiles(wxString& error, wxArrayString& warnings) {
 		return false;
 	}
 
-	const ServerWorkspace& workspace = g_workspace.getServer();
+
 	if (!workspace.hasItemsOtb()) {
 		error = "Server Workspace is configured, but items.otb was not found. NexaMap will not use a bundled item database.";
 		g_gui.DestroyLoadBar();
@@ -889,6 +900,8 @@ bool GUI::LoadDataFiles(wxString& error, wxArrayString& warnings) {
 		g_gui.SetLoadDone(30, "Server items.xml not found; continuing with items.otb...");
 		warnings.push_back("Server items.xml was not found. The workspace loaded directly from items.otb without optional XML metadata.");
 	}
+
+    }
 
 	g_gui.SetLoadIndeterminate("Loading creatures.xml ...");
 	if (!g_creatures.loadFromXML(editorDataDirectory + "creatures.xml", true, error, warnings, creatureProgress)) {

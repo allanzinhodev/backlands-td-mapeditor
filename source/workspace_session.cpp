@@ -46,7 +46,7 @@ namespace {
 	}
 
 	bool SameServerWorkspace(const ServerWorkspace& left, const ServerWorkspace& right) {
-		return left.rootPath == right.rootPath && left.itemsOtbPath == right.itemsOtbPath && left.itemsXmlPath == right.itemsXmlPath && left.appearancesPath == right.appearancesPath && left.activeDataDirectory == right.activeDataDirectory && left.mapsDirectory == right.mapsDirectory && left.primaryMapPath == right.primaryMapPath && left.monstersDirectory == right.monstersDirectory && left.npcsDirectory == right.npcsDirectory && left.itemsOtbFingerprint == right.itemsOtbFingerprint && left.itemsXmlFingerprint == right.itemsXmlFingerprint && left.appearancesFingerprint == right.appearancesFingerprint && left.itemIdMode == right.itemIdMode && left.serverType == right.serverType && left.serverProfile == right.serverProfile && left.protocol == right.protocol && SameDetectedMaps(left.maps, right.maps);
+		return left.jsonAssetsPath == right.jsonAssetsPath && left.jsonFiles == right.jsonFiles && left.rootPath == right.rootPath && left.itemsOtbPath == right.itemsOtbPath && left.itemsXmlPath == right.itemsXmlPath && left.appearancesPath == right.appearancesPath && left.activeDataDirectory == right.activeDataDirectory && left.mapsDirectory == right.mapsDirectory && left.primaryMapPath == right.primaryMapPath && left.monstersDirectory == right.monstersDirectory && left.npcsDirectory == right.npcsDirectory && left.itemsOtbFingerprint == right.itemsOtbFingerprint && left.itemsXmlFingerprint == right.itemsXmlFingerprint && left.appearancesFingerprint == right.appearancesFingerprint && left.itemIdMode == right.itemIdMode && left.serverType == right.serverType && left.serverProfile == right.serverProfile && left.protocol == right.protocol && SameDetectedMaps(left.maps, right.maps);
 	}
 
 	bool ApplyDetectedMapSelection(ServerWorkspace& workspace, const std::filesystem::path& path) {
@@ -58,7 +58,7 @@ namespace {
 		workspace.mapsDirectory = selected->path.parent_path();
 		workspace.serverType = selected->serverType;
 		workspace.serverProfile = ServerTypeName(selected->serverType);
-		workspace.itemIdMode = workspace.usesCanaryCrystalLoader()
+		workspace.itemIdMode = !workspace.jsonAssetsPath.empty() ? ItemIdMode::ServerId : workspace.usesCanaryCrystalLoader()
 			? ItemIdMode::ClientId
 			: (workspace.serverType == ServerType::Tfs ? ItemIdMode::ServerId : ItemIdMode::Unknown);
 		return true;
@@ -262,8 +262,9 @@ bool WorkspaceSession::restoreCompatibleClient(wxString& error, wxArrayString& w
 	error.clear();
 	warnings.clear();
 	if (hasCompatibleServerResources()) {
-		return true;
-	}
+        return true;
+    }
+    if(!server.jsonAssetsPath.empty())return configureClient(FromFilesystemPath(server.rootPath),error,warnings,persist);
 	if (server.usesCanaryCrystalLoader()) {
 		const wxString savedPath = wxstr(g_settings.getString(Config::CANARY_CRYSTAL_ASSETS_DIRECTORY));
 		if (savedPath.empty()) {
@@ -352,7 +353,7 @@ bool WorkspaceSession::hasCompatibleServerResources() const {
 	if (server.usesCanaryCrystalLoader()) {
 		return client.mode == WorkspaceClientMode::Appearances && server.hasRequiredResources();
 	}
-	return client.mode == WorkspaceClientMode::Classic && server.hasItemsOtb();
+	return client.mode == WorkspaceClientMode::Classic && (!server.jsonAssetsPath.empty() || server.hasItemsOtb());
 }
 
 bool WorkspaceSession::isReady() const {

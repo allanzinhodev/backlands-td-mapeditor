@@ -175,3 +175,28 @@ Developed by [Mateuzkl](https://github.com/Mateuzkl), [Skyyzyy](https://github.c
 ## License
 
 See [`LICENSE.rtf`](LICENSE.rtf) for the terms that apply to this repository and its distributions.
+# Backlands: assets JSON e tiles 16×16
+
+Este fork lê diretamente `backlands-ig/assets/assets.json`. Em **Server Workspace**
+e na seleção da pasta do cliente, escolha `C:\Users\aradantas\backlands-ig\assets`.
+Abra `resources/world.otbm` dessa pasta. Use o executável compilado deste fork;
+o NexaMap original não possui este leitor.
+
+O manifesto aponta para catálogos JSON de itens, outfits, efeitos e projéteis.
+As imagens são PNG, divididas em células de 16×16, com IDs de sprite estáveis.
+Os catálogos preservam flags, dimensões, camadas, padrões, grupos de frames e
+duração por fase. Sprite 0 representa transparência. A ordem das referências é
+fase → padrão Z/Y/X → camada → linha/coluna, começando pelo canto inferior direito.
+Não é necessário DAT, SPR, OTFI, items.otb ou ObjectBuilder para este workspace.
+Os mapas continuam OTBM e usam os próprios IDs dos itens JSON (a partir de 100).
+
+O catálogo de cenário começa vazio, conforme solicitado. Cadastre PNGs e itens em
+`assets/resources/items.json`; recarregue os recursos no editor após alterar o
+catálogo. A paleta RAW contém os itens cadastrados. Salvar o mapa não modifica
+os catálogos nem as imagens. No jogo, execute `npm.cmd run assets` e
+`npm.cmd run build:client` para compilar as alterações.
+
+Os personagens de 64×64 e NPCs de 32×32 mantêm seu tamanho original usando
+respectivamente 4×4 e 2×2 células. `outfitIdOffset` evita colisão de IDs entre
+catálogos. Os testes do leitor podem ser compilados separadamente com
+`-DBACKLANDS_ASSET_TESTS_ONLY=ON -DBACKLANDS_JSON_INCLUDE=<pasta de nlohmann/json.hpp>`.

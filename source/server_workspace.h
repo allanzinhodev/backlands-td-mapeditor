@@ -51,6 +51,8 @@ struct DetectedMap {
 };
 
 struct ServerWorkspace {
+	std::filesystem::path jsonAssetsPath;
+	std::vector<ResourceFingerprint> jsonFiles;
 	std::filesystem::path rootPath;
 	std::filesystem::path itemsOtbPath;
 	std::filesystem::path itemsXmlPath;

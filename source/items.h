@@ -37,6 +37,7 @@ class RAWBrush;
 
 class ItemType;
 class GameSprite;
+namespace backlands { struct Assets; }
 class ItemDatabase;
 
 namespace rme {
@@ -417,6 +418,7 @@ public:
 
 class ItemDatabase {
 public:
+	bool loadJsonAssets(const backlands::Assets& assets, wxString& error);
 	ItemDatabase();
 	~ItemDatabase();
 

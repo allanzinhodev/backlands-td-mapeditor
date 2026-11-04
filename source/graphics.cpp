@@ -19,6 +19,7 @@
 
 #include "sprites.h"
 #include "graphics.h"
+#include "items.h"
 #include "gl_renderer.h"
 #include "artprovider.h"
 #include "filehandle.h"
@@ -2270,6 +2271,11 @@ void GameSprite::NormalImage::clean(int time) {
 }
 
 uint8_t* GameSprite::NormalImage::getRGBData() {
+    if(!jsonPixels.empty()){
+        auto* data=new uint8_t[SPRITE_PIXELS_SIZE*3];
+        for(int p=0;p<SPRITE_PIXELS_SIZE;p++)for(int c=0;c<3;c++)data[p*3+c]=jsonPixels[p*4+3]?jsonPixels[p*4+c]:(c==1?0:255);
+        return data;
+    }
 	if (fromAssets) {
 		std::vector<uint8_t> pixels;
 		ClientSpriteSize sourceSize;
@@ -2389,6 +2395,10 @@ uint8_t* GameSprite::NormalImage::getRGBAData() {
 }
 
 uint8_t* GameSprite::NormalImage::getRGBAData(bool* pending) {
+    if(!jsonPixels.empty()){
+        if(pending)*pending=false;
+        auto* data=new uint8_t[jsonPixels.size()];std::copy(jsonPixels.begin(),jsonPixels.end(),data);return data;
+    }
 	if (pending) {
 		*pending = false;
 	}
@@ -3006,4 +3016,105 @@ void Animator::calculateSynchronous() {
 		}
 		last_time = time;
 	}
+}
+
+
+bool GraphicManager::loadJsonAssets(const backlands::Assets& assets, wxString& error) {
+    try {
+        clear();resourceIdentity=CreateSessionId();
+        item_count=99;creature_count=0;has_transparency=true;is_extended=true;
+        has_frame_durations=true;has_frame_groups=true;
+        for(const auto& catalog:assets.catalogs){
+            for(const auto& item:catalog.items)item_count=std::max(item_count,item.at("id").get<uint16_t>());
+            for(const auto& outfit:catalog.outfits)creature_count=std::max<uint16_t>(creature_count,outfit.at("id").get<uint16_t>()+catalog.outfitOffset);
+        }
+        auto* empty=new GameSprite::NormalImage();empty->id=0;empty->jsonPixels.assign(SPRITE_PIXELS_SIZE*4,0);image_space[0]=empty;
+        wxImage png;std::filesystem::path currentImage;
+        for(const auto& catalog:assets.catalogs){
+            const auto image=[&](uint32_t id)->GameSprite::NormalImage* {
+                if(!id)return empty;
+                const uint32_t global=id+catalog.spriteOffset;
+                const auto found=image_space.find(global);
+                if(found!=image_space.end())return static_cast<GameSprite::NormalImage*>(found->second);
+                const auto* sheet=catalog.sheet(id);if(!sheet)throw std::runtime_error("Missing JSON sprite");
+                if(currentImage!=sheet->image){
+#ifdef __WINDOWS__
+                    const wxString file(sheet->image.wstring());
+#else
+                    const wxString file=wxString::FromUTF8(sheet->image.string());
+#endif
+                    if(!png.LoadFile(file,wxBITMAP_TYPE_PNG)||!png.IsOk())throw std::runtime_error("Cannot decode PNG sprite sheet");
+                    currentImage=sheet->image;
+                }
+                const uint32_t cell=id-sheet->firstId;
+                const int x=cell%sheet->columns*16,y=cell/sheet->columns*16;
+                std::vector<uint8_t> pixels(SPRITE_PIXELS_SIZE*4,0);bool visible=false;
+                const auto* rgb=png.GetData();const auto* alpha=png.HasAlpha()?png.GetAlpha():nullptr;
+                for(int py=0;py<16;py++)for(int px=0;px<16;px++){
+                    const size_t from=(y+py)*png.GetWidth()+x+px,to=(py*16+px)*4;
+                    const uint8_t a=alpha?alpha[from]:255;
+                    if(a){for(int c=0;c<3;c++)pixels[to+c]=rgb[from*3+c];pixels[to+3]=a;visible=true;}
+                }
+                if(!visible)return empty;
+                auto* value=new GameSprite::NormalImage();value->id=global;value->jsonPixels=std::move(pixels);image_space[global]=value;return value;
+            };
+            const auto load=[&](const nlohmann::json& thing,bool outfit){
+                const int id=outfit?item_count+thing.at("id").get<int>()+catalog.outfitOffset:thing.at("id").get<int>();
+                GameSprite* fallback=nullptr;
+                for(const auto& group:thing.at("frameGroups")){
+                    auto sprite=std::make_unique<GameSprite>();sprite->id=id;
+                    sprite->width=group.at("width").get<uint8_t>();sprite->height=group.at("height").get<uint8_t>();
+                    sprite->layers=group.at("layers").get<uint8_t>();sprite->pattern_x=group.at("patternX").get<uint8_t>();
+                    sprite->pattern_y=group.at("patternY").get<uint8_t>();sprite->pattern_z=group.at("patternZ").get<uint8_t>();sprite->frames=group.at("phases").get<uint8_t>();
+                    const auto properties=thing.value("properties",nlohmann::json::object());
+                    sprite->ground_speed=properties.value("groundSpeed",150);sprite->minimap_color=properties.value("minimapColor",0);
+                    sprite->draw_height=properties.value("elevation",0);
+                    if(properties.contains("displacement")){sprite->drawoffset_x=properties["displacement"].value("x",0);sprite->drawoffset_y=properties["displacement"].value("y",0);}
+                    if(properties.contains("light")){sprite->has_light=true;sprite->light.intensity=properties["light"].value("intensity",0);sprite->light.color=properties["light"].value("color",0);}
+                    if(sprite->frames>1){
+                        sprite->animator=new Animator(sprite->frames,0,group.value("loop",true)?0:1,false);
+                        for(int frame=0;frame<sprite->frames;frame++){const int ms=group["durations"][frame].get<int>();sprite->animator->getFrameDuration(frame)->setValues(ms,ms);}
+                        sprite->animator->reset();
+                    }
+                    for(const auto& ref:group.at("sprites"))sprite->spriteList.push_back(image(ref.get<uint32_t>()));
+                    sprite->numsprites=static_cast<uint32_t>(sprite->spriteList.size());
+                    const auto name=group.at("name").get<std::string>();
+                    if(outfit&&name=="moving")moving_creature_space[id-item_count]=sprite.release();
+                    else if(!fallback||name=="idle"||name=="default"){
+                        if(fallback)delete fallback;fallback=sprite.release();
+                    }
+                }
+                if(!fallback&&outfit&&moving_creature_space.count(id-item_count)){
+                    fallback=moving_creature_space[id-item_count];moving_creature_space.erase(id-item_count);
+                }
+                if(!fallback)throw std::runtime_error("No renderable JSON frame group");
+                sprite_space[id]=fallback;
+            };
+            for(const auto& item:catalog.items)load(item,false);
+            for(const auto& outfit:catalog.outfits)load(outfit,true);
+        }
+        unloaded=false;return true;
+    }catch(const std::exception& exception){error=wxString::FromUTF8(exception.what());clear();return false;}
+}
+
+bool ItemDatabase::loadJsonAssets(const backlands::Assets& assets, wxString& error) {
+    try {
+        clear();MajorVersion=3;MinorVersion=20;BuildNumber=0;
+        for(const auto& catalog:assets.catalogs)for(const auto& definition:catalog.items){
+            auto item=std::make_unique<ItemType>();item->id=definition.at("id").get<uint16_t>();item->clientID=item->id;
+            item->name=definition.at("name").get<std::string>();item->description=definition.value("description",std::string{});
+            const auto flags=definition.value("flags",nlohmann::json::object());
+            item->group=flags.value("ground",false)?ITEM_GROUP_GROUND:flags.value("container",false)?ITEM_GROUP_CONTAINER:ITEM_GROUP_NONE;
+            item->unpassable=flags.value("blocked",false);item->blockMissiles=flags.value("blockProjectiles",false);
+            item->blockPathfinder=flags.value("blockPathfinding",false)||item->unpassable;
+            item->stackable=flags.value("stackable",false);item->moveable=flags.value("moveable",false);
+            item->pickupable=flags.value("pickupable",false);item->rotable=flags.value("rotatable",false);
+            item->alwaysOnBottom=flags.value("alwaysOnBottom",false);item->isWall=flags.value("wall",false);
+            item->isTable=flags.value("table",false);item->isCarpet=flags.value("carpet",false);
+            const auto properties=definition.value("properties",nlohmann::json::object());
+            item->alwaysOnTopOrder=properties.value("alwaysOnTopOrder",0);item->hasElevation=properties.value("elevation",0)>0;
+            max_item_id=std::max(max_item_id,item->id);const auto id=item->id;items.set(id,item.release());++item_count;
+        }
+        return true;
+    }catch(const std::exception& exception){error=wxString::FromUTF8(exception.what());clear();return false;}
 }

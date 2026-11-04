@@ -97,3 +97,5 @@ vcpkg-binary-cache/
 *.p12
 *.otbm
 *.otgz
+
+build-json-contracts/

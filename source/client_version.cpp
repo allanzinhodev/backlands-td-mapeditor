@@ -23,6 +23,7 @@
 #include "gui.h"
 
 #include "client_version.h"
+#include "backlands_assets.h"
 #include "otml.h"
 #include <wx/dir.h>
 
@@ -410,6 +411,19 @@ ClientVersion* ClientVersion::detectFromPath(const FileName& requestedPath, wxSt
 	}
 
 	const wxString clientDirectory = candidatePath.GetPath(wxPATH_GET_VOLUME | wxPATH_GET_SEPARATOR);
+    if(wxFileName(clientDirectory,"assets.json").FileExists()){
+        try {
+#ifdef __WINDOWS__
+            backlands::Assets::load(std::filesystem::path(clientDirectory.ToStdWstring()));
+#else
+            backlands::Assets::load(std::filesystem::u8path(clientDirectory.ToStdString(wxConvUTF8)));
+#endif
+            auto* version=ClientVersion::get(CLIENT_VERSION_860);
+            if(!version){error="Backlands requires the OTBM compatibility profile 8.60.";return nullptr;}
+            version->setClientPath(candidatePath);return version;
+        }catch(const std::exception& e){error=wxString::FromUTF8(e.what());return nullptr;}
+    }
+
 	wxFileName metadata(clientDirectory, wxString(ASSETS_NAME) + ".dat");
 	wxFileName sprites(clientDirectory, wxString(ASSETS_NAME) + ".spr");
 	wxDir directory(clientDirectory);
@@ -502,6 +516,7 @@ FileName ClientVersion::getLocalDataPath() const {
 }
 
 bool ClientVersion::hasValidPaths() {
+    if(wxFileName(client_path.GetPath(wxPATH_GET_VOLUME|wxPATH_GET_SEPARATOR),"assets.json").FileExists())return true;
 	if (!client_path.DirExists()) {
 		return false;
 	}

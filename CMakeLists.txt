@@ -9,6 +9,19 @@ endif()
 project(rme)
 
 include(CTest)
+option(BACKLANDS_ASSET_TESTS_ONLY "Build JSON asset and workspace contracts without the GUI" OFF)
+if(BACKLANDS_ASSET_TESTS_ONLY)
+	find_path(BACKLANDS_JSON_INCLUDE nlohmann/json.hpp REQUIRED)
+	add_executable(backlands_assets_tests tests/backlands_assets_tests.cpp source/backlands_assets.cpp source/server_workspace.cpp)
+	target_include_directories(backlands_assets_tests PRIVATE source "${BACKLANDS_JSON_INCLUDE}")
+	target_compile_features(backlands_assets_tests PRIVATE cxx_std_20)
+	add_test(NAME backlands_assets_tests COMMAND backlands_assets_tests)
+	add_executable(server_workspace_tests tests/server_workspace_tests.cpp source/server_workspace.cpp source/backlands_assets.cpp)
+	target_include_directories(server_workspace_tests PRIVATE source "${BACKLANDS_JSON_INCLUDE}")
+	target_compile_features(server_workspace_tests PRIVATE cxx_std_20)
+	add_test(NAME server_workspace_tests COMMAND server_workspace_tests)
+	return()
+endif()
 include(GNUInstallDirs)
 if(UNIX AND NOT APPLE)
 	# Keep vcpkg's static codec symbols private. GTK's shared pixbuf loaders
@@ -490,7 +503,9 @@ if(BUILD_TESTING)
 	add_executable(server_workspace_tests
 		tests/server_workspace_tests.cpp
 		source/server_workspace.cpp
+		source/backlands_assets.cpp
 	)
+	target_link_libraries(server_workspace_tests PRIVATE nlohmann_json::nlohmann_json)
 	target_include_directories(server_workspace_tests PRIVATE source)
 	set_target_properties(server_workspace_tests PROPERTIES
 		CXX_STANDARD 20
