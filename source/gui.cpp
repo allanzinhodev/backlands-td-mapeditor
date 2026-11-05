@@ -834,10 +834,12 @@ bool GUI::LoadDataFiles(wxString& error, wxArrayString& warnings) {
 	g_gui.gfx.client_version = getLoadedVersion();
 
 	const ServerWorkspace& workspace = g_workspace.getServer();
+	std::optional<backlands::Assets> jsonAssets;
 	if (!workspace.jsonAssetsPath.empty()) {
 		g_gui.CreateLoadBar("Loading Backlands JSON assets");
 		try {
-			const auto assets = backlands::Assets::load(workspace.rootPath);
+			jsonAssets = backlands::Assets::load(workspace.rootPath);
+			const auto& assets = *jsonAssets;
 			g_gui.SetLoadDone(10, "Loading Backlands JSON and PNG assets...");
 			if (!g_gui.gfx.loadJsonAssets(assets, error) || !g_items.loadJsonAssets(assets, error)) {
 				g_gui.DestroyLoadBar();
@@ -946,6 +948,9 @@ bool GUI::LoadDataFiles(wxString& error, wxArrayString& warnings) {
 		// warnings.push_back("Couldn't load extensions: " + error);
 	}
 	AppendActionableMaterialWarnings(warnings, extensionWarnings);
+	if (jsonAssets) {
+		g_materials.loadJsonBrushes(*jsonAssets);
+	}
 
 	g_gui.SetLoadIndeterminate("Initializing editor brushes...");
 	g_brushes.init();

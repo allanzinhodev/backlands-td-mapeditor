@@ -35,6 +35,12 @@ fase → padrão Z/Y/X → camada → linha/coluna, começando pelo canto inferi
 Não é necessário DAT, SPR, OTFI, items.otb ou ObjectBuilder para este workspace.
 Os mapas continuam OTBM e usam os próprios IDs dos itens JSON (a partir de 100).
 
+O campo opcional `brushes` do manifesto aponta para `backlands.brushes` v1.
+Os grupos por cor exportados pelo Aseprite aparecem na paleta **Collections**
+com os IDs dos itens, inclusive cores com alpha. Recarregar os recursos atualiza
+os membros e remove os grupos apagados sem alterar os materiais manuais.
+As opcoes `floorChange` dos itens tambem configuram as flags de escada do editor.
+
 O catálogo de cenário começa vazio, conforme solicitado. Cadastre PNGs e itens em
 `assets/resources/items.json`; recarregue os recursos no editor após alterar o
 catálogo. A paleta RAW contém os itens cadastrados. Salvar o mapa não modifica

@@ -30,6 +30,7 @@
 #include "raw_brush.h"
 #include "client_assets.h"
 #include "item_id_mapping.h"
+#include "backlands_assets.h"
 
 #include <limits>
 
@@ -117,11 +118,13 @@ void Materials::clear() {
 	}
 
 	tilesets.clear();
+	jsonBrushTilesets.clear();
 	extensions.clear();
 }
 
 void Materials::swap(Materials& other) noexcept {
 	tilesets.swap(other.tilesets);
+	jsonBrushTilesets.swap(other.jsonBrushTilesets);
 	extensions.swap(other.extensions);
 	std::swap(modified, other.modified);
 	std::swap(other_tileset_creature_count, other.other_tileset_creature_count);
@@ -509,6 +512,34 @@ void Materials::addToTileset(const std::string& tilesetName, int itemId, Tileset
 		}
 		it.in_other_tileset = true;
 	}
+}
+
+void Materials::loadJsonBrushes(const backlands::Assets& assets) {
+	// A resource reload replaces authored color groups, including removed members.
+	// Keep all item brushes owned by the normal item/brush registry.
+	for (const auto& name : jsonBrushTilesets) {
+		const auto found = tilesets.find(name);
+		if (found != tilesets.end()) {
+			delete found->second;
+			tilesets.erase(found);
+		}
+	}
+	jsonBrushTilesets.clear();
+	for (const auto& brush : assets.brushes) {
+		if (brush.at("items").empty()) {
+			continue;
+		}
+		const auto title = "Aseprite: " + brush.at("name").get<std::string>() + " (" + brush.at("color").get<std::string>() + ")";
+		auto name = title;
+		for (int suffix = 2; tilesets.count(name); ++suffix) {
+			name = title + " " + std::to_string(suffix);
+		}
+		for (const auto& item : brush.at("items")) {
+			addToTileset(name, item.get<uint16_t>(), TILESET_COLLECTION);
+		}
+		jsonBrushTilesets.insert(name);
+	}
+	other_tileset_item_maxid = -1;
 }
 
 bool Materials::isInTileset(Item* item, const std::string& tilesetName) const {

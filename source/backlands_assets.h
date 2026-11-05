@@ -22,6 +22,7 @@ namespace backlands {
 	struct Assets {
 		std::filesystem::path root, map;
 		std::vector<Catalog> catalogs;
+		nlohmann::json brushes = nlohmann::json::array();
 		std::vector<std::filesystem::path> files;
 		static Assets load(const std::filesystem::path& root);
 	};

@@ -3183,6 +3183,7 @@ bool ItemDatabase::loadJsonAssets(const backlands::Assets& assets, wxString& err
 				auto item = std::make_unique<ItemType>();
 				item->id = definition.at("id").get<uint16_t>();
 				item->clientID = item->id;
+				item->sprite = static_cast<GameSprite*>(g_gui.gfx.getSprite(item->clientID));
 				item->name = definition.at("name").get<std::string>();
 				item->description = definition.value("description", std::string {});
 				const auto flags = definition.value("flags", nlohmann::json::object());
@@ -3199,6 +3200,13 @@ bool ItemDatabase::loadJsonAssets(const backlands::Assets& assets, wxString& err
 				item->isWall = flags.value("wall", false);
 				item->isTable = flags.value("table", false);
 				item->isCarpet = flags.value("carpet", false);
+				const auto floorChange = definition.value("floorChange", std::string {});
+				item->floorChange = !floorChange.empty();
+				item->floorChangeDown = floorChange == "down";
+				item->floorChangeNorth = floorChange == "north" || floorChange == "northex";
+				item->floorChangeSouth = floorChange == "up" || floorChange == "south" || floorChange == "southalt" || floorChange == "southex";
+				item->floorChangeEast = floorChange == "east" || floorChange == "eastalt" || floorChange == "eastex";
+				item->floorChangeWest = floorChange == "west" || floorChange == "westex";
 				const auto properties = definition.value("properties", nlohmann::json::object());
 				item->alwaysOnTopOrder = properties.value("alwaysOnTopOrder", 0);
 				item->hasElevation = properties.value("elevation", 0) > 0;

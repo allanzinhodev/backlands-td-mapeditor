@@ -6,6 +6,8 @@ set "NEXAMAP_DIAGNOSTICS=1"
 set "NEXAMAP_DEBUG_EXE=%~dp0NexaMap Editor.exe"
 rem Prefer the Visual Studio solution output over an older copied executable.
 if exist "%~dp0vcproj\x64\Release\NexaMap Editor.exe" set "NEXAMAP_DEBUG_EXE=%~dp0vcproj\x64\Release\NexaMap Editor.exe"
+rem Prefer a validated local Backlands package when one is installed.
+if exist "%~dp0.cache\BacklandsMapEditor\NexaMap Editor.exe" set "NEXAMAP_DEBUG_EXE=%~dp0.cache\BacklandsMapEditor\NexaMap Editor.exe"
 if not exist "%NEXAMAP_DEBUG_EXE%" goto missing
 echo Executavel: "%NEXAMAP_DEBUG_EXE%"
 echo O terminal permanecera aberto quando o NexaMap encerrar.

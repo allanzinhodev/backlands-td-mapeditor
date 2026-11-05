@@ -5,6 +5,7 @@
 #include <chrono>
 #include <stdexcept>
 #include <source_location>
+#include <algorithm>
 
 using Json = nlohmann::json;
 namespace fs = std::filesystem;
@@ -30,7 +31,7 @@ int main(int argc, char** argv) {
 		const Json group = { { "name", "default" }, { "width", 1 }, { "height", 1 }, { "layers", 1 }, { "patternX", 1 }, { "patternY", 1 }, { "patternZ", 1 }, { "phases", 2 }, { "durations", { 100, 240 } }, { "sprites", { 1, 0 } } };
 		Json catalog = { { "format", "backlands.things" }, { "version", 1 }, { "spriteSize", 16 }, { "sheets", Json::array({ { { "firstId", 1 }, { "image", "tile.png" }, { "columns", 1 }, { "rows", 1 } } }) }, { "items", Json::array({ { { "id", 100 }, { "name", "Hand authored ground" }, { "flags", { { "ground", true } } }, { "frameGroups", Json::array({ group }) } } }) }, { "outfits", Json::array() }, { "effects", Json::array() }, { "missiles", Json::array() } };
 		write(root / "items.json", catalog);
-		const Json manifest = { { "format", "backlands.assets" }, { "version", 1 }, { "tileSize", 16 }, { "map", "world.otbm" }, { "configuration", "config.json" }, { "catalogs", Json::array({ { { "namespace", "terrain" }, { "file", "items.json" } } }) } };
+		Json manifest = { { "format", "backlands.assets" }, { "version", 1 }, { "tileSize", 16 }, { "map", "world.otbm" }, { "configuration", "config.json" }, { "catalogs", Json::array({ { { "namespace", "terrain" }, { "file", "items.json" } } }) } };
 		write(root / "assets.json", manifest);
 		check(backlands::Assets::load(root).catalogs[0].items[0]["id"] == 100);
 		catalog["items"][0]["flags"]["season"] = 0;
@@ -41,6 +42,42 @@ int main(int argc, char** argv) {
 		check(detected.validRoot && detected.workspace.hasRequiredResources());
 		check(detected.workspace.itemIdMode == ItemIdMode::ServerId);
 		check(!detected.workspace.hasItemsOtb() && !detected.workspace.trackedResourcesChanged());
+		const Json brush = { { "id", "aseprite:fixture:ff000080" }, { "name", "Trees" }, { "color", "#ff000080" }, { "sourceId", "fixture" }, { "items", { 100 } } };
+		Json brushes = { { "format", "backlands.brushes" }, { "version", 1 }, { "brushes", Json::array({ brush }) } };
+		write(root / "brushes.json", brushes);
+		manifest["brushes"] = "brushes.json";
+		write(root / "assets.json", manifest);
+		const auto withBrushes = backlands::Assets::load(root);
+		check(withBrushes.brushes.size() == 1 && withBrushes.brushes[0]["items"][0] == 100);
+		check(std::find(withBrushes.files.begin(), withBrushes.files.end(), fs::canonical(root / "brushes.json")) != withBrushes.files.end());
+		const auto brushWorkspace = ServerResourceDetector::Detect(root);
+		check(brushWorkspace.validRoot && !brushWorkspace.workspace.trackedResourcesChanged());
+		for (int scenario = 0; scenario < 4; scenario++) {
+			auto invalid = brushes;
+			if (scenario == 0) {
+				invalid["brushes"][0]["items"] = { 65535 };
+			}
+			if (scenario == 1) {
+				invalid["brushes"][0]["items"] = { 100, 100 };
+			}
+			if (scenario == 2) {
+				invalid["brushes"][0]["color"] = "#ff0000";
+			}
+			if (scenario == 3) {
+				invalid["brushes"].push_back(brush);
+			}
+			write(root / "brushes.json", invalid);
+			fs::last_write_time(root / "brushes.json", fs::file_time_type::clock::now() + std::chrono::seconds(scenario + 1));
+			check(brushWorkspace.workspace.trackedResourcesChanged());
+			bool rejected = false;
+			try {
+				backlands::Assets::load(root);
+			} catch (const std::exception&) {
+				rejected = true;
+			}
+			check(rejected);
+		}
+		write(root / "brushes.json", brushes);
 		for (int scenario = 0; scenario < 6; scenario++) {
 			auto invalid = catalog;
 			if (scenario == 0) {

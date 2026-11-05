@@ -224,6 +224,30 @@ namespace backlands {
 			}
 			result.catalogs.push_back(std::move(catalog));
 		}
+		if (manifest.contains("brushes")) {
+			const auto file = assetPath(result.root, manifest.at("brushes").get<std::string>());
+			result.files.push_back(file);
+			const auto data = read(file);
+			if (data.at("format") != "backlands.brushes" || data.at("version") != 1 || !data.at("brushes").is_array()) {
+				throw std::runtime_error("Expected Backlands brush groups v1");
+			}
+			std::set<std::string> brushIds;
+			for (const auto& brush : data["brushes"]) {
+				const auto id = brush.at("id").get<std::string>(), name = brush.at("name").get<std::string>(), color = brush.at("color").get<std::string>();
+				if (id.empty() || name.empty() || !brushIds.insert(id).second || color.size() != 9 || color[0] != '#'
+					|| !std::all_of(color.begin() + 1, color.end(), [](unsigned char value) { return std::isxdigit(value); }) || !brush.at("items").is_array()) {
+					throw std::runtime_error("Invalid Backlands brush group");
+				}
+				std::set<uint32_t> members;
+				for (const auto& value : brush["items"]) {
+					const auto item = integer(value, 100, 65535, "brush item ID");
+					if (!itemIds.count(item) || !members.insert(item).second) {
+						throw std::runtime_error("Missing or duplicate Backlands brush item");
+					}
+				}
+			}
+			result.brushes = data["brushes"];
+		}
 		return result;
 	}
 } // namespace backlands

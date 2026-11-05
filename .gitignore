@@ -99,3 +99,4 @@ vcpkg-binary-cache/
 *.otgz
 
 build-json-contracts/
+build-brush-integration/

@@ -21,6 +21,10 @@
 #include "extension.h"
 #include <functional>
 
+namespace backlands {
+	struct Assets;
+}
+
 class Materials {
 public:
 	Materials();
@@ -42,6 +46,7 @@ public:
 	bool loadExtensions(const FileName& identifier, wxString& error, wxArrayString& warnings);
 	void createOtherTileset(const std::function<void(size_t, size_t)>& progress = {});
 	void addToTileset(const std::string& tilesetName, int itemId, TilesetCategoryType categoryType);
+	void loadJsonBrushes(const backlands::Assets& assets);
 
 	bool isInTileset(Item* item, const std::string& tileset) const;
 	bool isInTileset(Brush* brush, const std::string& tileset) const;
@@ -62,6 +67,7 @@ protected:
 
 private:
 	bool modified = false;
+	std::set<std::string> jsonBrushTilesets;
 	// Cache signature of the last createOtherTileset() build, so we can skip the
 	// expensive full item-DB + creature rescan when nothing changed.
 	size_t other_tileset_creature_count = static_cast<size_t>(-1);

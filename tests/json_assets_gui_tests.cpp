@@ -2,6 +2,8 @@
 #include "gui.h"
 #include "items.h"
 #include "backlands_assets.h"
+#include "materials.h"
+#include "brush.h"
 #include <wx/imagpng.h>
 #include <chrono>
 #include <filesystem>
@@ -38,6 +40,7 @@ int RunMultiplayerSessionTests(int argc, char** argv) {
 		std::ofstream(root / "config.json") << "{}";
 		const Json group = { { "name", "default" }, { "width", 2 }, { "height", 1 }, { "layers", 1 }, { "patternX", 1 }, { "patternY", 1 }, { "patternZ", 1 }, { "phases", 2 }, { "durations", { 100, 240 } }, { "sprites", { 2, 1, 1, 2 } } };
 		Json thing = { { "id", 100 }, { "name", "Authored ground" }, { "flags", { { "ground", true }, { "blocked", true }, { "blockProjectiles", true } } }, { "frameGroups", Json::array({ group }) } };
+		thing["floorChange"] = "eastalt";
 		auto outfit = thing;
 		outfit["id"] = 1;
 		outfit["name"] = "NPC";
@@ -48,15 +51,23 @@ int RunMultiplayerSessionTests(int argc, char** argv) {
 		std::ofstream(root / "items.json") << catalog;
 		const Json manifest = { { "format", "backlands.assets" }, { "version", 1 }, { "tileSize", 16 }, { "map", "world.otbm" }, { "configuration", "config.json" }, { "catalogs", Json::array({ { { "namespace", "terrain" }, { "file", "items.json" }, { "outfitIdOffset", 334 } } }) } };
 		std::ofstream(root / "assets.json") << manifest;
-		const auto assets = backlands::Assets::load(root);
+		auto assets = backlands::Assets::load(root);
+		assets.brushes = Json::array({ { { "id", "aseprite:test:ff000080" }, { "name", "Trees" }, { "color", "#ff000080" }, { "items", { 100 } } } });
 		wxString error;
 		for (int reload = 0; reload < 2; reload++) {
 			requireJson(g_gui.gfx.loadJsonAssets(assets, error));
 			requireJson(g_items.loadJsonAssets(assets, error));
+			g_materials.loadJsonBrushes(assets);
+			const auto* category = g_materials.tilesets.at("Aseprite: Trees (#ff000080)")->getCategory(TILESET_COLLECTION);
+			requireJson(category && category->size() == 1 && category->brushlist[0] == g_items[100].raw_brush);
+			g_materials.loadJsonBrushes(assets);
+			requireJson(g_materials.tilesets.at("Aseprite: Trees (#ff000080)")->getCategory(TILESET_COLLECTION)->size() == 1);
 			const auto& item = g_items[100];
 			requireJson(item.name == "Authored ground" && item.clientID == 100 && item.unpassable && item.blockMissiles && item.group == ITEM_GROUP_GROUND);
+			requireJson(item.isFloorChange() && item.floorChangeEast && !item.floorChangeDown);
 			auto* sprite = dynamic_cast<GameSprite*>(g_gui.gfx.getSprite(100));
 			requireJson(sprite && sprite->width == 2 && sprite->height == 1 && sprite->frames == 2 && sprite->spriteList.size() == 4);
+			requireJson(item.sprite == sprite);
 			requireJson(sprite->animator->getFrameDuration(0)->min == 100 && sprite->animator->getFrameDuration(1)->min == 240);
 			std::unique_ptr<uint8_t[]> pixels(sprite->spriteList[0]->getRGBAData());
 			requireJson(pixels[0] == 10 && pixels[2] == 240 && pixels[3] == 128);
@@ -69,11 +80,17 @@ int RunMultiplayerSessionTests(int argc, char** argv) {
 			target.SelectObject(wxNullBitmap);
 			requireJson(icon.ConvertToImage().GetBlue(24, 8) == 240);
 		}
+		g_materials.addToTileset("Manual", 100, TILESET_COLLECTION);
+		assets.brushes = Json::array();
+		g_materials.loadJsonBrushes(assets);
+		requireJson(!g_materials.tilesets.count("Aseprite: Trees (#ff000080)"));
+		requireJson(g_materials.tilesets.at("Manual")->getCategory(TILESET_COLLECTION)->brushlist[0] == g_items[100].raw_brush);
 		std::cout << "JSON PNG graphics, flags, alpha, groups, icons and reload passed\n";
 	} catch (const std::exception& error) {
 		std::cerr << error.what() << '\n';
 		result = 1;
 	}
+	g_materials.clear();
 	g_items.clear();
 	g_gui.gfx.clear();
 	fs::remove_all(root);
