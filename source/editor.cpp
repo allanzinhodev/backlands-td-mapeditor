@@ -1637,6 +1637,9 @@ bool Editor::applyDoodadPositions(const PositionVector& positions, bool alt, boo
 			BaseMap* bufferMap = g_gui.doodad_buffer_map.get();
 			DoodadBrush* doodadBrush = brush->asDoodad();
 			for (const Position& offset : positions) {
+				if (!doodadBrush->canDraw(&map, offset)) {
+					continue;
+				}
 				std::unique_ptr<Action> action(actionQueue->createAction(batch.get()));
 				const Position deltaPosition = offset - Position(0x8000, 0x8000, 0x8);
 				for (MapIterator iterator = bufferMap->begin(); iterator != bufferMap->end(); ++iterator) {
@@ -1727,6 +1730,11 @@ void Editor::drawInternal(Position offset, bool alt, bool dodraw) {
 	}
 
 	if (brush->isDoodad()) {
+		// Authored structures validate their entire footprint before any tile is
+		// changed. Ordinary doodads retain their existing canDraw behavior.
+		if (!brush->canDraw(&map, offset)) {
+			return;
+		}
 		BatchAction* batch = actionQueue->createBatch(ACTION_DRAW);
 		Action* action = actionQueue->createAction(batch);
 		BaseMap* buffer_map = g_gui.doodad_buffer_map.get();

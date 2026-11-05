@@ -78,6 +78,37 @@ int main(int argc, char** argv) {
 			check(rejected);
 		}
 		write(root / "brushes.json", brushes);
+		auto structure = brush;
+		structure["type"] = "structure";
+		structure["width"] = 3;
+		structure["height"] = 2;
+		structure["anchor"] = { { "x", 0 }, { "y", 0 } };
+		structure["tiles"] = Json::array({ { { "x", 0 }, { "y", 0 }, { "z", 0 }, { "items", { 100 } } }, { { "x", 2 }, { "y", 1 }, { "z", 0 }, { "items", { 100 } } } });
+		structure["seasonTiles"] = Json::array({ structure["tiles"], structure["tiles"], structure["tiles"], structure["tiles"] });
+		brushes["brushes"] = Json::array({ structure });
+		write(root / "brushes.json", brushes);
+		check(backlands::Assets::load(root).brushes[0]["tiles"].size() == 2);
+		for (int scenario = 0; scenario < 12; scenario++) {
+			auto invalid = brushes;
+			auto& entry = invalid["brushes"][0];
+			if (scenario == 0) entry["width"] = 0;
+			if (scenario == 1) entry["tiles"][0]["x"] = 3;
+			if (scenario == 2) entry["tiles"][0]["y"] = -1;
+			if (scenario == 3) entry["tiles"][0]["z"] = 1;
+			if (scenario == 4) entry["tiles"][0]["items"] = { 101 };
+			if (scenario == 5) entry["tiles"][0]["items"] = { 100, 100 };
+			if (scenario == 6) entry["tiles"].push_back(entry["tiles"][0]);
+			if (scenario == 7) entry["seasonTiles"].erase(0);
+			if (scenario == 8) entry["seasonTiles"][0][0]["x"] = 1;
+			if (scenario == 9) entry["type"] = "unknown";
+			if (scenario == 10) entry["anchor"]["x"] = 3;
+			if (scenario == 11) entry["tiles"][0]["x"] = 0.5;
+			write(root / "brushes.json", invalid);
+			bool rejected = false;
+			try { backlands::Assets::load(root); } catch (const std::exception&) { rejected = true; }
+			check(rejected);
+		}
+		write(root / "brushes.json", brushes);
 		for (int scenario = 0; scenario < 6; scenario++) {
 			auto invalid = catalog;
 			if (scenario == 0) {

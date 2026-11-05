@@ -4,6 +4,7 @@
 #include <cctype>
 #include <fstream>
 #include <limits>
+#include <map>
 #include <set>
 #include <stdexcept>
 
@@ -164,6 +165,7 @@ namespace backlands {
 		}
 		std::set<std::string> namespaces;
 		std::set<uint32_t> itemIds, outfitIds;
+		std::map<uint32_t, std::pair<int, int>> itemDimensions;
 		uint64_t spriteOffset = 0;
 		for (const auto& entry : manifest["catalogs"]) {
 			Catalog catalog;
@@ -211,6 +213,11 @@ namespace backlands {
 				if (!itemIds.insert(item.at("id").get<uint32_t>()).second) {
 					throw std::runtime_error("Duplicate item across catalogs");
 				}
+				auto& dimensions = itemDimensions[item.at("id").get<uint32_t>()];
+				for (const auto& group : item.at("frameGroups")) {
+					dimensions.first = std::max(dimensions.first, group.at("width").get<int>());
+					dimensions.second = std::max(dimensions.second, group.at("height").get<int>());
+				}
 			}
 			for (const auto& outfit : catalog.outfits) {
 				const auto id = outfit.at("id").get<uint32_t>() + catalog.outfitOffset;
@@ -243,6 +250,51 @@ namespace backlands {
 					const auto item = integer(value, 100, 65535, "brush item ID");
 					if (!itemIds.count(item) || !members.insert(item).second) {
 						throw std::runtime_error("Missing or duplicate Backlands brush item");
+					}
+				}
+				if (brush.contains("type")) {
+					if (brush.at("type") != "structure" || members.empty()) {
+						throw std::runtime_error("Invalid Backlands brush type");
+					}
+					const auto width = integer(brush.at("width"), 1, 32768, "structure width");
+					const auto height = integer(brush.at("height"), 1, 32768, "structure height");
+					const auto& anchor = brush.at("anchor");
+					integer(anchor.at("x"), 0, width - 1, "structure anchor X");
+					integer(anchor.at("y"), 0, height - 1, "structure anchor Y");
+					const auto validateTiles = [&](const Json& tiles) {
+						if (!tiles.is_array() || tiles.empty() || tiles.size() > 1048576) {
+							throw std::runtime_error("Invalid structure tiles");
+						}
+						std::set<std::pair<uint32_t, uint32_t>> positions;
+						for (const auto& tile : tiles) {
+							const auto x = integer(tile.at("x"), 0, width - 1, "structure tile X");
+							const auto y = integer(tile.at("y"), 0, height - 1, "structure tile Y");
+							integer(tile.at("z"), 0, 0, "structure tile floor");
+							if (!positions.emplace(x, y).second || !tile.at("items").is_array() || tile.at("items").empty()) {
+								throw std::runtime_error("Duplicate or empty structure tile");
+							}
+							std::set<uint32_t> stack;
+							for (const auto& entry : tile.at("items")) {
+								const auto item = integer(entry, 100, 65535, "structure item ID");
+								if (!members.count(item) || !stack.insert(item).second) {
+									throw std::runtime_error("Missing or duplicate structure item");
+								}
+								const auto dimensions = itemDimensions.at(item);
+								if (x + 1 < uint32_t(dimensions.first) || y + 1 < uint32_t(dimensions.second)) {
+									throw std::runtime_error("Structure item extends beyond its footprint");
+								}
+							}
+						}
+					};
+					validateTiles(brush.at("tiles"));
+					if (brush.contains("seasonTiles")) {
+						const auto& variants = brush.at("seasonTiles");
+						if (!variants.is_array() || variants.size() != 4 || variants[0] != brush.at("tiles")) {
+							throw std::runtime_error("Invalid structure season variants");
+						}
+						for (const auto& tiles : variants) {
+							validateTiles(tiles);
+						}
 					}
 				}
 			}

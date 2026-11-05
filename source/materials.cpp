@@ -31,10 +31,78 @@
 #include "client_assets.h"
 #include "item_id_mapping.h"
 #include "backlands_assets.h"
+#include "doodad_brush.h"
+#include "map.h"
 
 #include <limits>
 
 namespace {
+	// The registry keeps these brushes alive across reloads: palettes, the current
+	// selection and favorites can retain a Brush*. Reuse by persistent source ID.
+	class JsonStructureBrush final : public DoodadBrush {
+	public:
+		explicit JsonStructureBrush(std::string id) : sourceId(std::move(id)) { }
+		const std::string sourceId;
+		void deactivate() {
+			visible = false;
+			for (auto* alternative : alternatives) {
+				delete alternative;
+			}
+			alternatives.clear();
+		}
+		void configure(const nlohmann::json& data) {
+			deactivate();
+			name = "Aseprite: " + data.at("name").get<std::string>() + " (" + data.at("color").get<std::string>() + ")";
+			width = data.at("width").get<int>();
+			height = data.at("height").get<int>();
+			anchor = Position(data.at("anchor").at("x").get<int>(), data.at("anchor").at("y").get<int>(), 0);
+			look_id = g_items[data.at("tiles")[0].at("items")[0].get<uint16_t>()].clientID;
+			one_size = true;
+			on_blocking = true;
+			on_duplicate = true;
+			thickness = thickness_ceiling = 1;
+			const auto add = [&](const nlohmann::json& tiles) {
+				auto alternative = std::make_unique<AlternativeBlock>();
+				alternative->composite_chance = 1;
+				alternative->composite_items.emplace_back();
+				auto& composite = alternative->composite_items.back();
+				composite.chance = 1;
+				for (const auto& tile : tiles) {
+					composite.items.emplace_back(Position(tile.at("x").get<int>(), tile.at("y").get<int>(), 0) - anchor, ItemVector {});
+					for (const auto& value : tile.at("items")) {
+						Item* item = Item::Create(value.get<uint16_t>());
+						if (!item) {
+							throw std::runtime_error("Cannot create Aseprite structure item");
+						}
+						composite.items.back().second.push_back(item);
+					}
+				}
+				alternatives.push_back(alternative.release());
+			};
+			if (data.contains("seasonTiles")) {
+				for (const auto& tiles : data.at("seasonTiles")) {
+					add(tiles);
+				}
+			} else {
+				add(data.at("tiles"));
+			}
+			flagAsVisible();
+		}
+		bool canDraw(BaseMap* map, const Position& position) const override {
+			if (alternatives.empty() || !position.isValid()) {
+				return false;
+			}
+			const auto* bounded = dynamic_cast<Map*>(map);
+			const int maxX = std::min(bounded ? bounded->getWidth() : MAP_MAX_WIDTH + 1, MAP_MAX_WIDTH + 1);
+			const int maxY = std::min(bounded ? bounded->getHeight() : MAP_MAX_HEIGHT + 1, MAP_MAX_HEIGHT + 1);
+			return position.x >= anchor.x && position.y >= anchor.y
+				&& position.x - anchor.x + width <= maxX && position.y - anchor.y + height <= maxY;
+		}
+	private:
+		int width = 0, height = 0;
+		Position anchor;
+	};
+
 	struct MaterialIdTranslationStats {
 		uint64_t translated = 0;
 		uint64_t missing = 0;
@@ -525,6 +593,11 @@ void Materials::loadJsonBrushes(const backlands::Assets& assets) {
 		}
 	}
 	jsonBrushTilesets.clear();
+	for (const auto& entry : g_brushes.getMap()) {
+		if (auto* structure = dynamic_cast<JsonStructureBrush*>(entry.second)) {
+			structure->deactivate();
+		}
+	}
 	for (const auto& brush : assets.brushes) {
 		if (brush.at("items").empty()) {
 			continue;
@@ -534,8 +607,30 @@ void Materials::loadJsonBrushes(const backlands::Assets& assets) {
 		for (int suffix = 2; tilesets.count(name); ++suffix) {
 			name = title + " " + std::to_string(suffix);
 		}
-		for (const auto& item : brush.at("items")) {
-			addToTileset(name, item.get<uint16_t>(), TILESET_COLLECTION);
+		if (brush.value("type", "") == "structure") {
+			JsonStructureBrush* structure = nullptr;
+			for (const auto& entry : g_brushes.getMap()) {
+				auto* existing = dynamic_cast<JsonStructureBrush*>(entry.second);
+				if (existing && existing->sourceId == brush.at("id").get<std::string>()) {
+					structure = existing;
+					break;
+				}
+			}
+			if (!structure) {
+				auto created = std::make_unique<JsonStructureBrush>(brush.at("id").get<std::string>());
+				created->configure(brush);
+				g_brushes.addBrush(created.get());
+				structure = created.release();
+			} else {
+				structure->configure(brush);
+			}
+			auto tileset = std::make_unique<Tileset>(g_brushes, name);
+			tileset->getCategory(TILESET_DOODAD)->brushlist.push_back(structure);
+			tilesets.emplace(name, tileset.release());
+		} else {
+			for (const auto& item : brush.at("items")) {
+				addToTileset(name, item.get<uint16_t>(), TILESET_COLLECTION);
+			}
 		}
 		jsonBrushTilesets.insert(name);
 	}
