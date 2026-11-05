@@ -176,6 +176,14 @@
 	</menu>
 	<menu name="View">
 		<!-- mapeditor view options -->
+		<menu name="Season preview">
+			<item name="Original" action="SEASON_PREVIEW_ORIGINAL" help="Display the original sprites of the placed items."/>
+			<item name="Summer" action="SEASON_PREVIEW_SUMMER" help="Preview summer variants without changing the map items."/>
+			<item name="Autumn" action="SEASON_PREVIEW_AUTUMN" help="Preview autumn variants without changing the map items."/>
+			<item name="Winter" action="SEASON_PREVIEW_WINTER" help="Preview winter variants without changing the map items."/>
+			<item name="Spring" action="SEASON_PREVIEW_SPRING" help="Preview spring variants without changing the map items."/>
+		</menu>
+		<separator/>
 		<item name="Show all Floors" hotkey="Ctrl+W" action="SHOW_ALL_FLOORS" help="If not checked other floors are hidden."/>
 		<item name="Show as Minimap" hotkey="Shift+E" action="SHOW_AS_MINIMAP" help="Show only the tile minimap colors."/>
 		<item name="Only show Colors" hotkey="Ctrl+E" action="SHOW_ONLY_COLORS" help="Show only the special tiles on the map."/>

@@ -12,10 +12,12 @@
 #include "settings.h"
 #include "palette_brushlist.h"
 #include <wx/imagpng.h>
+#include <array>
 #include <chrono>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <map>
 
 namespace fs = std::filesystem;
 using Json = nlohmann::json;
@@ -26,9 +28,9 @@ Editor::Editor(CopyBuffer& buffer, std::nullptr_t) :
 	map.setHeight(512);
 	map.unnamed = true;
 }
-void requireJson(bool value) {
+void requireJson(bool value, const char* message = "JSON graphics integration failed") {
 	if (!value) {
-		throw std::runtime_error("JSON graphics integration failed");
+		throw std::runtime_error(message);
 	}
 }
 int RunMultiplayerSessionTests(int argc, char** argv) {
@@ -44,11 +46,13 @@ int RunMultiplayerSessionTests(int argc, char** argv) {
 	fs::create_directories(root);
 	int result = 0;
 	try {
-		wxImage png(32, 16);
+		wxImage png(64, 16);
 		png.InitAlpha();
 		for (int y = 0; y < 16; y++) {
-			for (int x = 0; x < 32; x++) {
-				png.SetRGB(x, y, x < 16 ? 240 : 10, 30, x < 16 ? 10 : 240);
+			for (int x = 0; x < 64; x++) {
+				const unsigned char colors[4][3] = { { 240, 30, 10 }, { 10, 30, 240 }, { 10, 240, 30 }, { 240, 210, 10 } };
+				const auto& color = colors[x / 16];
+				png.SetRGB(x, y, color[0], color[1], color[2]);
 				png.SetAlpha(x, y, x == 0 ? 0 : 128);
 			}
 		}
@@ -64,21 +68,46 @@ int RunMultiplayerSessionTests(int argc, char** argv) {
 		auto moving = group;
 		moving["name"] = "moving";
 		outfit["frameGroups"].push_back(moving);
-		Json catalog = { { "format", "backlands.things" }, { "version", 1 }, { "spriteSize", 16 }, { "sheets", Json::array({ { { "firstId", 1 }, { "image", "tile.png" }, { "columns", 2 }, { "rows", 1 } } }) }, { "items", Json::array({ thing }) }, { "outfits", Json::array({ outfit }) }, { "effects", Json::array() }, { "missiles", Json::array() } };
+		Json catalog = { { "format", "backlands.things" }, { "version", 1 }, { "spriteSize", 16 }, { "sheets", Json::array({ { { "firstId", 1 }, { "image", "tile.png" }, { "columns", 4 }, { "rows", 1 } } }) }, { "items", Json::array({ thing }) }, { "outfits", Json::array({ outfit }) }, { "effects", Json::array() }, { "missiles", Json::array() } };
 		for (int season = 0; season < 4; ++season) {
 			auto part = thing;
 			part["id"] = 101 + season;
 			part["flags"] = { { "season", season } };
+			part["seasonGroup"] = "test:complete";
 			part["frameGroups"][0]["width"] = 1;
 			part["frameGroups"][0]["phases"] = 1;
 			part["frameGroups"][0]["durations"] = { 100 };
-			part["frameGroups"][0]["sprites"] = { 1 };
+			part["frameGroups"][0]["sprites"] = { 1 + season };
+			if (season == 2) {
+				part["frameGroups"][0]["phases"] = 2;
+				part["frameGroups"][0]["durations"] = { 80, 360 };
+				part["frameGroups"][0]["sprites"] = { 3, 4 };
+			}
+			catalog["items"].push_back(part);
+		}
+		for (int season : { 0, 2 }) {
+			auto part = catalog["items"][1 + season];
+			part["id"] = season == 0 ? 105 : 106;
+			part["seasonGroup"] = "test:incomplete";
+			part["seasonFallback"] = true;
+			catalog["items"].push_back(part);
+		}
+		for (int season : { 0, 2 }) {
+			auto part = catalog["items"][1 + season];
+			part["id"] = season == 0 ? 107 : 108;
+			part["seasonGroup"] = "test:no-fallback";
 			catalog["items"].push_back(part);
 		}
 		std::ofstream(root / "items.json") << catalog;
 		const Json manifest = { { "format", "backlands.assets" }, { "version", 1 }, { "tileSize", 16 }, { "map", "world.otbm" }, { "configuration", "config.json" }, { "catalogs", Json::array({ { { "namespace", "terrain" }, { "file", "items.json" }, { "outfitIdOffset", 334 } } }) } };
 		std::ofstream(root / "assets.json") << manifest;
 		auto assets = backlands::Assets::load(root);
+		const auto renderedFingerprint = [](GameSprite* sprite) {
+			SpriteVisualFingerprint fingerprint;
+			bool pending = false;
+			requireJson(sprite && sprite->getRenderedFingerprint(fingerprint, pending, false) && !pending, "Season preview pixels must be available synchronously");
+			return fingerprint;
+		};
 		assets.brushes = Json::array({ { { "id", "aseprite:test:ff000080" }, { "name", "Trees" }, { "color", "#ff000080" }, { "items", { 100 } } } });
 		wxString error;
 		for (int reload = 0; reload < 2; reload++) {
@@ -106,6 +135,47 @@ int RunMultiplayerSessionTests(int argc, char** argv) {
 			sprite->DrawTo(&target, SPRITE_SIZE_32x32, 0, 0);
 			target.SelectObject(wxNullBitmap);
 			requireJson(icon.ConvertToImage().GetBlue(24, 8) == 240);
+
+			const auto resourceIdentity = g_gui.gfx.getResourceIdentity();
+			const auto originalPreviewIdentity = g_gui.gfx.GetPreviewResourceIdentity();
+			requireJson(g_gui.gfx.GetPreviewSeason() == -1, "Season preview must initially show original item art");
+			g_gui.SetPreviewSeason(-2);
+			g_gui.SetPreviewSeason(4);
+			requireJson(g_gui.gfx.GetPreviewSeason() == -1 && g_gui.gfx.GetPreviewResourceIdentity() == originalPreviewIdentity, "Invalid preview seasons must not change render caches");
+			const auto normalFingerprint = renderedFingerprint(sprite);
+			std::array<SpriteVisualFingerprint, 4> seasonFingerprints;
+			for (int season = 0; season < 4; ++season) {
+				g_gui.SetPreviewSeason(season);
+				auto* expected = dynamic_cast<GameSprite*>(g_gui.gfx.getSprite(101 + season));
+				seasonFingerprints[season] = renderedFingerprint(expected);
+				const auto previewIdentity = g_gui.gfx.GetPreviewResourceIdentity();
+				requireJson(previewIdentity != originalPreviewIdentity && g_gui.gfx.getResourceIdentity() == resourceIdentity, "Season preview must invalidate rendering without replacing loaded resources");
+				for (int original = 101; original <= 104; ++original) {
+					auto* preview = g_gui.gfx.GetPreviewItemSprite(original);
+					requireJson(preview == expected && renderedFingerprint(preview) == seasonFingerprints[season], "Every member of a seasonal family must show the chosen season");
+					requireJson(g_items[original].sprite == g_gui.gfx.getSprite(original), "Season preview must preserve original item sprite metadata");
+				}
+				requireJson(g_gui.gfx.GetPreviewItemSprite(100) == sprite && renderedFingerprint(sprite) == normalFingerprint, "Normal item art must remain unchanged in every season");
+				const int fallbackId = season == 2 ? 106 : 105;
+				requireJson(g_gui.gfx.GetPreviewItemSprite(105) == g_gui.gfx.getSprite(fallbackId) && g_gui.gfx.GetPreviewItemSprite(106) == g_gui.gfx.getSprite(fallbackId), "Missing authored seasons must fall back to the first existing season");
+				if (season == 1 || season == 3) {
+					requireJson(g_gui.gfx.GetPreviewItemSprite(107) == g_gui.gfx.getSprite(107) && g_gui.gfx.GetPreviewItemSprite(108) == g_gui.gfx.getSprite(108), "Incomplete families without fallback must retain their original art");
+				}
+				if (season == 2) {
+					requireJson(expected->frames == 2 && expected->animator && expected->animator->getFrameDuration(0)->min == 80 && expected->animator->getFrameDuration(1)->min == 360, "Winter preview must use its own animation frame count and timing");
+				}
+				g_gui.SetPreviewSeason(season);
+				requireJson(g_gui.gfx.GetPreviewResourceIdentity() == previewIdentity, "Selecting the same preview season must preserve rendering cache identity");
+			}
+			for (int first = 0; first < 4; ++first) {
+				for (int second = first + 1; second < 4; ++second) {
+					requireJson(!(seasonFingerprints[first] == seasonFingerprints[second]), "Fixture seasons must produce distinct rendered artwork");
+				}
+			}
+			g_gui.SetPreviewSeason(-1);
+			for (int original = 101; original <= 108; ++original) {
+				requireJson(g_gui.gfx.GetPreviewItemSprite(original) == g_gui.gfx.getSprite(original), "Original preview must restore the artwork of each placed item ID");
+			}
 		}
 		g_materials.addToTileset("Manual", 100, TILESET_COLLECTION);
 		Json structure = { { "id", "aseprite:structure:00880080" }, { "name", "House" }, { "color", "#00880080" }, { "items", { 100, 101, 102, 103, 104 } }, { "type", "structure" }, { "width", 4 }, { "height", 3 }, { "anchor", { { "x", 0 }, { "y", 0 } } } };
@@ -144,6 +214,16 @@ int RunMultiplayerSessionTests(int argc, char** argv) {
 			requireJson(!has(editor.map.getTile({ 21, 30, 7 }), 100) && !has(editor.map.getTile({ 21, 32, 7 }), 101) && !has(editor.map.getTile({ 23, 32, 7 }), 101));
 			requireJson(editor.actionQueue->redo());
 			requireJson(has(editor.map.getTile({ 21, 30, 7 }), 100) && has(editor.map.getTile({ 21, 32, 7 }), 101) && has(editor.map.getTile({ 23, 32, 7 }), 101));
+			editor.map.clearChanges();
+			const auto mapGeneration = editor.map.getChangeGeneration();
+			const auto undoType = editor.actionQueue->getUndoType();
+			const auto canRedo = editor.actionQueue->canRedo();
+			for (int season : { 0, 1, 2, 3, -1 }) {
+				g_gui.SetPreviewSeason(season);
+				requireJson(has(editor.map.getTile({ 21, 30, 7 }), 100) && has(editor.map.getTile({ 21, 32, 7 }), 101) && has(editor.map.getTile({ 23, 32, 7 }), 101), "Viewing seasons must never replace placed map IDs");
+				requireJson(!editor.map.hasChanged() && editor.map.getChangeGeneration() == mapGeneration, "Viewing seasons must not dirty the map or change its generation");
+				requireJson(editor.actionQueue->getUndoType() == undoType && editor.actionQueue->canRedo() == canRedo, "Viewing seasons must not add undo or redo actions");
+			}
 			// Refuse the whole stamp, including the tile that would fit.
 			editor.draw({ 510, 40, 7 }, false);
 			requireJson(!has(editor.map.getTile({ 511, 40, 7 }), 100));
@@ -173,7 +253,7 @@ int RunMultiplayerSessionTests(int argc, char** argv) {
 		requireJson(!stamp->visibleInPalette() && !stamp->canDraw(g_gui.doodad_buffer_map.get(), { 20, 20, 7 }));
 		g_gui.SelectBrushInternal(nullptr);
 		requireJson(g_materials.tilesets.at("Manual")->getCategory(TILESET_COLLECTION)->brushlist[0] == g_items[100].raw_brush);
-		std::cout << "JSON PNG graphics, flags, alpha, groups, structure preview, placement, seasons, bounds, undo/redo and reload passed\n";
+		std::cout << "JSON PNG graphics, flags, alpha, seasonal art/animation preview, immutable map IDs, groups, structure placement, bounds, undo/redo and reload passed\n";
 		if (argc > 1) {
 			g_materials.clear();
 			g_brushes.clear();
@@ -181,6 +261,38 @@ int RunMultiplayerSessionTests(int argc, char** argv) {
 			g_gui.gfx.clear();
 			const auto actual = backlands::Assets::load(fs::path(argv[1]));
 			requireJson(g_gui.gfx.loadJsonAssets(actual, error) && g_items.loadJsonAssets(actual, error));
+			std::map<std::string, std::array<int, 4>> seasonFamilies;
+			for (const auto& catalog : actual.catalogs) {
+				for (const auto& item : catalog.items) {
+					if (item.contains("seasonGroup") && item.value("flags", Json::object()).contains("season")) {
+						seasonFamilies[item.at("seasonGroup").get<std::string>()][item["flags"]["season"].get<int>()] = item.at("id").get<int>();
+					}
+				}
+			}
+			requireJson(!seasonFamilies.empty(), "Real assets must expose authored seasonal families");
+			for (int season = 0; season < 4; ++season) {
+				g_gui.SetPreviewSeason(season);
+				for (const auto& catalog : actual.catalogs) {
+					for (const auto& item : catalog.items) {
+						const int id = item.at("id").get<int>();
+						int expected = id;
+						if (item.contains("seasonGroup") && item.value("flags", Json::object()).contains("season")) {
+							const auto& variants = seasonFamilies.at(item.at("seasonGroup").get<std::string>());
+							expected = variants[season];
+							if (expected == 0 && item.value("seasonFallback", false)) {
+								expected = *std::find_if(variants.begin(), variants.end(), [](int candidate) { return candidate != 0; });
+							}
+							if (expected == 0) {
+								expected = id;
+							}
+						}
+						requireJson(g_gui.gfx.GetPreviewItemSprite(id) == g_gui.gfx.getSprite(expected), "Real authored asset preview must resolve each family to the selected season");
+						requireJson(g_items[id].sprite == g_gui.gfx.getSprite(id), "Real authored item sprite metadata must preserve its original ID");
+					}
+				}
+			}
+			g_gui.SetPreviewSeason(-1);
+			std::cout << "Real game map season preview validated: " << seasonFamilies.size() << " seasonal families across four seasons\n";
 			g_materials.loadJsonBrushes(actual);
 			for (const auto& authored : actual.brushes) {
 				const auto name = "Aseprite: " + authored.at("name").get<std::string>() + " (" + authored.at("color").get<std::string>() + ")";

@@ -177,6 +177,11 @@ MainMenuBar::MainMenuBar(MainFrame* frame) :
 	MAKE_ACTION(ZOOM_IN, wxITEM_NORMAL, OnZoomIn);
 	MAKE_ACTION(ZOOM_OUT, wxITEM_NORMAL, OnZoomOut);
 	MAKE_ACTION(ZOOM_NORMAL, wxITEM_NORMAL, OnZoomNormal);
+	MAKE_ACTION(SEASON_PREVIEW_ORIGINAL, wxITEM_RADIO, OnChangePreviewSeason);
+	MAKE_ACTION(SEASON_PREVIEW_SUMMER, wxITEM_RADIO, OnChangePreviewSeason);
+	MAKE_ACTION(SEASON_PREVIEW_AUTUMN, wxITEM_RADIO, OnChangePreviewSeason);
+	MAKE_ACTION(SEASON_PREVIEW_WINTER, wxITEM_RADIO, OnChangePreviewSeason);
+	MAKE_ACTION(SEASON_PREVIEW_SPRING, wxITEM_RADIO, OnChangePreviewSeason);
 
 	MAKE_ACTION(SHOW_SHADE, wxITEM_CHECK, OnChangeViewSettings);
 	MAKE_ACTION(SHOW_ALL_FLOORS, wxITEM_CHECK, OnChangeViewSettings);
@@ -519,6 +524,10 @@ void MainMenuBar::Update() {
 	EnableItem(ZOOM_IN, has_map);
 	EnableItem(ZOOM_OUT, has_map);
 	EnableItem(ZOOM_NORMAL, has_map);
+	for (auto id : { SEASON_PREVIEW_ORIGINAL, SEASON_PREVIEW_SUMMER, SEASON_PREVIEW_AUTUMN, SEASON_PREVIEW_WINTER, SEASON_PREVIEW_SPRING }) {
+		EnableItem(id, loaded);
+	}
+	CheckItem(static_cast<ActionID>(SEASON_PREVIEW_ORIGINAL + g_gui.gfx.GetPreviewSeason() + 1), true);
 
 	if (has_map) {
 		CheckItem(SHOW_SPAWNS, g_settings.getBoolean(Config::SHOW_SPAWNS));
@@ -628,6 +637,7 @@ void MainMenuBar::LoadValues() {
 	CheckItem(SHOW_TOWNS, g_settings.getBoolean(Config::SHOW_TOWNS));
 	CheckItem(ALWAYS_SHOW_ZONES, g_settings.getBoolean(Config::ALWAYS_SHOW_ZONES));
 	CheckItem(EXT_HOUSE_SHADER, g_settings.getBoolean(Config::EXT_HOUSE_SHADER));
+	CheckItem(static_cast<ActionID>(SEASON_PREVIEW_ORIGINAL + g_gui.gfx.GetPreviewSeason() + 1), true);
 
 	CheckItem(EXPERIMENTAL_FOG, g_settings.getBoolean(Config::EXPERIMENTAL_FOG));
 }
@@ -2471,6 +2481,19 @@ void MainMenuBar::OnZoomOut(wxCommandEvent& event) {
 
 void MainMenuBar::OnZoomNormal(wxCommandEvent& event) {
 	g_gui.SetCurrentZoom(1.0);
+}
+
+void MainMenuBar::OnChangePreviewSeason(wxCommandEvent& event) {
+	if (checking_programmaticly) {
+		return;
+	}
+	const int season = event.GetId() - MAIN_FRAME_MENU - MenuBar::SEASON_PREVIEW_ORIGINAL - 1;
+	if (season < -1 || season > 3) {
+		return;
+	}
+	g_gui.SetPreviewSeason(season);
+	static const char* names[] = { "Original", "Summer", "Autumn", "Winter", "Spring" };
+	g_gui.SetStatusText(wxString("Season preview: ") + names[season + 1]);
 }
 
 void MainMenuBar::OnChangeViewSettings(wxCommandEvent& event) {

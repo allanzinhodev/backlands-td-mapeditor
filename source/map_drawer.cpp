@@ -66,6 +66,15 @@
 using Color = std::tuple<int, int, int>;
 
 namespace {
+	GameSprite* PreviewItemSprite(const ItemType& type) {
+		if (g_gui.gfx.GetPreviewSeason() >= 0) {
+			if (auto* sprite = g_gui.gfx.GetPreviewItemSprite(type.clientID)) {
+				return sprite;
+			}
+		}
+		return type.sprite;
+	}
+
 	// Stack-only visual definition; never installed in a map or action queue.
 	class PlaytestDoorSprite final : public Item {
 	public:
@@ -665,10 +674,10 @@ void MapDrawer::DrawMap() {
 	const bool cpuRequested = g_settings.getBoolean(Config::USE_CPU_GEOMETRY_CACHE) || gpuRequested;
 	cpu_geometry_enabled = cpuRequested && !far_zoom_mode && !options.isOnlyColors();
 	gpu_ground_enabled = gpuRequested && cpu_geometry_enabled;
-	chunk_render_cache.beginPass(editor.map.getSessionId(), g_gui.gfx.getResourceIdentity(), gpuRequested);
+	chunk_render_cache.beginPass(editor.map.getSessionId(), g_gui.gfx.GetPreviewResourceIdentity(), gpuRequested);
 	ground_draw_ms = 0;
 	if (cpuRequested) {
-		chunk_geometry_cache.beginPass(editor.map.getSessionId(), g_gui.gfx.getResourceIdentity(), options.show_performance_stats || geometry_trace.is_open());
+		chunk_geometry_cache.beginPass(editor.map.getSessionId(), g_gui.gfx.GetPreviewResourceIdentity(), options.show_performance_stats || geometry_trace.is_open());
 	} else {
 		chunk_geometry_cache.clear();
 	}
@@ -764,7 +773,7 @@ void MapDrawer::DrawMap() {
 								gpuChunk = chunk_render_cache.prepare(
 									MakeMapChunkKey(origin.x, origin.y, origin.z), chunk->getRenderRevision().content, *geometry,
 									[](const MapChunkGroundQuad& quad) {
-										GameSprite* sprite = g_items[quad.itemId].sprite;
+										GameSprite* sprite = PreviewItemSprite(g_items[quad.itemId]);
 										if (!sprite) {
 											return ChunkAtlasSprite {};
 										}
@@ -1555,7 +1564,7 @@ void MapDrawer::BlitItem(int& draw_x, int& draw_y, const Position& pos, Item* it
 	}
 
 	// item sprite
-	GameSprite* spr = it.sprite;
+	GameSprite* spr = PreviewItemSprite(it);
 
 	// Display invisible and invalid items
 	// Ugly hacks. :)
@@ -1641,7 +1650,10 @@ void MapDrawer::BlitItem(int& draw_x, int& draw_y, const Position& pos, Item* it
 		}
 	}
 
-	const int requestedFrame = item->getFrame();
+	// A seasonal replacement may have different phases and authored timings.
+	// Resolve its animation for drawing; the item's definition remains original.
+	const int requestedFrame = spr == it.sprite ? item->getFrame() :
+		(spr->animator && (options.show_preview || canvas->IsIngamePreview()) ? spr->animator->getFrame() : 0);
 	if (spr->width == 1 && spr->height == 1 && spr->layers == 1) {
 		auto st = spr->getSpriteTex(0, 0, 0, subtype, pattern_x, pattern_y, pattern_z, requestedFrame);
 		if (st.texture != 0) {
@@ -1740,7 +1752,7 @@ void MapDrawer::BlitItem(int& draw_x, int& draw_y, const Position& pos, Item* it
 }
 
 void MapDrawer::BlitSpriteType(int screenx, int screeny, uint32_t spriteid, int red, int green, int blue, int alpha) {
-	BlitSpriteType(screenx, screeny, g_items[spriteid].sprite, red, green, blue, alpha);
+	BlitSpriteType(screenx, screeny, PreviewItemSprite(g_items[spriteid]), red, green, blue, alpha);
 }
 
 void MapDrawer::BlitSpriteType(int screenx, int screeny, GameSprite* spr, int red, int green, int blue, int alpha) {
@@ -1783,7 +1795,7 @@ void MapDrawer::BlitSpriteType(int screenx, int screeny, GameSprite* spr, int re
 void MapDrawer::BlitCreature(int screenx, int screeny, const Outfit& outfit, Direction dir, int red, int green, int blue, int alpha, int animationFrame, FrameGroupType group) {
 	if (outfit.lookItem != 0) {
 		ItemType& it = g_items[outfit.lookItem];
-		BlitSpriteType(screenx, screeny, it.sprite, red, green, blue, alpha);
+		BlitSpriteType(screenx, screeny, PreviewItemSprite(it), red, green, blue, alpha);
 	} else {
 		// get outfit sprite
 		GameSprite* spr = g_gui.gfx.getCreatureSprite(outfit.lookType, group);
@@ -2054,7 +2066,7 @@ void MapDrawer::BlitSquare(int sx, int sy, int red, int green, int blue, int alp
 }
 
 void MapDrawer::DrawRawBrush(int screenx, int screeny, ItemType* itemType, uint8_t r, uint8_t g, uint8_t b, uint8_t alpha) {
-	GameSprite* spr = itemType->sprite;
+	GameSprite* spr = PreviewItemSprite(*itemType);
 	uint16_t cid = itemType->clientID;
 
 	switch (cid) {
@@ -2180,7 +2192,7 @@ MapChunkGeometry MapDrawer::BuildChunkGeometry(const Floor& chunk) const {
 		}
 		const Item& ground = *tile->ground;
 		const ItemType& type = g_items[ground.getID()];
-		GameSprite* sprite = type.sprite;
+		GameSprite* sprite = PreviewItemSprite(type);
 		// The rest of BlitItem (special squares, item-dependent patterns,
 		// multi-part completeness, podiums and indicators) remains live.
 		if (!type.isGroundTile() || type.isMetaItem() || type.pickupable || type.stackable || type.isSplash() || type.isFluidContainer() || type.isHangable || type.isPodium() || type.isDoor() || type.hookSouth || type.hookEast || !sprite) {
@@ -2212,7 +2224,7 @@ bool MapDrawer::BlitCachedGround(int& x, int& y, Item& ground, const MapChunkGro
 		chunk_geometry_cache.recordReplay();
 		return true;
 	}
-	GameSprite* sprite = g_items[quad.itemId].sprite;
+	GameSprite* sprite = PreviewItemSprite(g_items[quad.itemId]);
 	if (!sprite) {
 		return false;
 	}
@@ -2790,7 +2802,7 @@ void MapDrawer::DrawContainerPreview() {
 			continue;
 		}
 		const ItemType& type = g_items[item->getID()];
-		GameSprite* sprite = type.sprite;
+		GameSprite* sprite = PreviewItemSprite(type);
 		if (!sprite || sprite->width == 0 || sprite->height == 0 || sprite->layers == 0 || static_cast<unsigned int>(sprite->width) * sprite->height * sprite->layers > 256) {
 			continue;
 		}
@@ -3286,7 +3298,7 @@ void MapDrawer::TraceGeometryFrame() {
 	const auto& gpu = renderer->getFrameStats();
 	const auto& revision = editor.map.getChunkRevisionTracker().getStats();
 	const auto& persistent = chunk_render_cache.getStats();
-	geometry_trace << ++geometry_trace_rows << ',' << editor.map.getSessionId() << ',' << g_gui.gfx.getResourceIdentity() << ','
+	geometry_trace << ++geometry_trace_rows << ',' << editor.map.getSessionId() << ',' << g_gui.gfx.GetPreviewResourceIdentity() << ','
 				   << g_settings.getBoolean(Config::USE_CPU_GEOMETRY_CACHE) << ',' << cpu_geometry_enabled << ',' << scene_drawn_this_frame << ','
 				   << options.ingame << ',' << screensize_x << ',' << screensize_y << ','
 				   << zoom << ',' << view_scroll_x << ',' << view_scroll_y << ',' << floor << ',' << visible_tile_count << ',' << visible_item_count << ','

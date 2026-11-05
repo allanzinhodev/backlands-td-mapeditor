@@ -199,6 +199,11 @@ namespace MenuBar {
 		MAP_DIAGNOSTICS,
 		SHOW_CONTAINER_PREVIEW,
 		WHOLE_MAP_MIGRATION,
+		SEASON_PREVIEW_ORIGINAL,
+		SEASON_PREVIEW_SUMMER,
+		SEASON_PREVIEW_AUTUMN,
+		SEASON_PREVIEW_WINTER,
+		SEASON_PREVIEW_SPRING,
 	};
 }
 
@@ -331,6 +336,7 @@ public:
 	void OnZoomOut(wxCommandEvent& event);
 	void OnZoomNormal(wxCommandEvent& event);
 	void OnChangeViewSettings(wxCommandEvent& event);
+	void OnChangePreviewSeason(wxCommandEvent& event);
 
 	// Window Menu
 	void OnMinimapWindow(wxCommandEvent& event);

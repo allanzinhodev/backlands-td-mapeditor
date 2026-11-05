@@ -36,13 +36,29 @@ Não é necessário DAT, SPR, OTFI, items.otb ou ObjectBuilder para este workspa
 Os mapas continuam OTBM e usam os próprios IDs dos itens JSON (a partir de 100).
 
 O campo opcional `brushes` do manifesto aponta para `backlands.brushes` v1.
-Os grupos por cor exportados pelo Aseprite aparecem na paleta **Collections**
-com os IDs dos itens, inclusive cores com alpha. Recarregar os recursos atualiza
-os membros e remove os grupos apagados sem alterar os materiais manuais.
+Cada cor RGBA em `Pinceis` do Aseprite gera uma estrutura completa na paleta
+**Doodads → Aseprite**. Um clique coloca todos os itens nas posições relativas
+da fonte; **X** e **Z** alternam a estação do carimbo. O `separador` define
+os itens individuais, disponíveis em RAW. Os grupos antigos sem posições
+continuam em Collections. Recarregar os recursos atualiza os pincéis sem
+alterar os materiais manuais.
 As opcoes `floorChange` dos itens tambem configuram as flags de escada do editor.
 
-O catálogo de cenário começa vazio, conforme solicitado. Cadastre PNGs e itens em
-`assets/resources/items.json`; recarregue os recursos no editor após alterar o
+Para visualizar o mapa inteiro em outra estação, use **View → Season preview**:
+**Summer** (verão), **Autumn** (outono), **Winter** (inverno) ou **Spring**
+(primavera). **Original** mostra a arte dos IDs que estão realmente no mapa.
+A prévia associa variantes pelo `seasonGroup` do catálogo e mantém os itens
+normais. Nos grupos compilados pelo Aseprite, se faltar uma estação, usa a
+primeira variante disponível na ordem verão, outono, inverno e primavera.
+A troca só muda a visualização: os IDs,
+as colisões e os dados salvos do mapa permanecem os mesmos. A estação da
+prévia é independente da variante escolhida para colocar um carimbo.
+A escolha da prévia pertence à sessão de recursos ativa; abas com recursos
+independentes mantêm sua própria estação durante a troca de abas.
+
+A [fonte Aseprite e seu registro de IDs](https://github.com/allanzinhodev/backlands-ig/tree/main/assets/source/aseprite)
+acompanham os assets no repositório do jogo.
+Cadastre PNGs e itens em `assets/resources/items.json`; recarregue os recursos após alterar o
 catálogo. A paleta RAW contém os itens cadastrados. Salvar o mapa não modifica
 os catálogos nem as imagens. No jogo, execute `npm.cmd run assets` e
 `npm.cmd run build:client` para compilar as alterações.

@@ -374,6 +374,16 @@ public:
 	}
 
 	Sprite* getSprite(int id);
+	// Presentation only: map items retain their authored IDs and definitions.
+	// -1 uses the original sprite; 0..3 select summer, autumn, winter, spring.
+	void SetPreviewSeason(int season);
+	int GetPreviewSeason() const noexcept {
+		return previewSeason;
+	}
+	GameSprite* GetPreviewItemSprite(int clientId);
+	SessionId GetPreviewResourceIdentity() const noexcept {
+		return previewResourceIdentity;
+	}
 	GameSprite* getCreatureSprite(int id, FrameGroupType group = FRAME_GROUP_DEFAULT);
 	GameSprite* getEditorSprite(int id);
 
@@ -461,6 +471,9 @@ public:
 private:
 	bool unloaded;
 	SessionId resourceIdentity = CreateSessionId();
+	SessionId previewResourceIdentity = CreateSessionId();
+	int previewSeason = -1;
+	std::map<int, std::array<int, 4>> previewItemVariants;
 	// This is used if memcaching is NOT on
 	std::string spritefile;
 	std::unique_ptr<FileReadHandle> sprite_file_handle;

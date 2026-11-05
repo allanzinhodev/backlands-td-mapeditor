@@ -222,6 +222,9 @@ GraphicManager::~GraphicManager() {
 void GraphicManager::swap(GraphicManager& other) noexcept {
 	using std::swap;
 	swap(resourceIdentity, other.resourceIdentity);
+	swap(previewResourceIdentity, other.previewResourceIdentity);
+	swap(previewSeason, other.previewSeason);
+	previewItemVariants.swap(other.previewItemVariants);
 	swap(atlas_page_epochs, other.atlas_page_epochs);
 	swap(client_version, other.client_version);
 	swap(unloaded, other.unloaded);
@@ -528,6 +531,8 @@ void GraphicManager::markTextureMissing() noexcept {
 
 void GraphicManager::clear(bool clearPreloader) {
 	resourceIdentity = CreateSessionId();
+	previewResourceIdentity = CreateSessionId();
+	previewItemVariants.clear();
 	atlas_page_epochs.clear();
 	if (clearPreloader) {
 		g_spritePreloader.clear();
@@ -602,6 +607,25 @@ Sprite* GraphicManager::getSprite(int id) {
 		return it->second;
 	}
 	return nullptr;
+}
+
+void GraphicManager::SetPreviewSeason(int season) {
+	if (season < -1 || season > 3 || season == previewSeason) {
+		return;
+	}
+	previewSeason = season;
+	// Invalidate presentation caches without reloading resources or touching a map.
+	previewResourceIdentity = CreateSessionId();
+}
+
+GameSprite* GraphicManager::GetPreviewItemSprite(int clientId) {
+	if (previewSeason >= 0) {
+		const auto variants = previewItemVariants.find(clientId);
+		if (variants != previewItemVariants.end() && variants->second[previewSeason] != 0) {
+			return static_cast<GameSprite*>(getSprite(variants->second[previewSeason]));
+		}
+	}
+	return dynamic_cast<GameSprite*>(getSprite(clientId));
 }
 
 GameSprite* GraphicManager::getCreatureSprite(int id, FrameGroupType group) {
@@ -836,6 +860,7 @@ bool GraphicManager::loadOTFI(const FileName& filename, wxString& error, wxArray
 
 bool GraphicManager::loadSpriteMetadata(const FileName& datafile, wxString& error, wxArrayString& warnings) {
 	resourceIdentity = CreateSessionId();
+	previewResourceIdentity = CreateSessionId();
 	// items.otb has most of the info we need. This only loads the GameSprite metadata
 	FileReadHandle file(nstr(datafile.GetFullPath()));
 
@@ -1032,6 +1057,7 @@ bool GraphicManager::loadAppearanceSprite(
 ) {
 	using namespace rme::protobuf::appearances;
 	resourceIdentity = CreateSessionId();
+	previewResourceIdentity = CreateSessionId();
 
 	const FrameGroup* frameGroup = explicitGroup;
 	if (!frameGroup) {
@@ -3030,6 +3056,7 @@ bool GraphicManager::loadJsonAssets(const backlands::Assets& assets, wxString& e
 	try {
 		clear();
 		resourceIdentity = CreateSessionId();
+		previewResourceIdentity = CreateSessionId();
 		item_count = 99;
 		creature_count = 0;
 		has_transparency = true;
@@ -3161,6 +3188,50 @@ bool GraphicManager::loadJsonAssets(const backlands::Assets& assets, wxString& e
 			}
 			for (const auto& outfit : catalog.outfits) {
 				load(outfit, true);
+			}
+		}
+		std::map<std::string, std::array<int, 4>> seasonalGroups;
+		for (const auto& catalog : assets.catalogs) {
+			for (const auto& item : catalog.items) {
+				const auto flags = item.value("flags", nlohmann::json::object());
+				if (!flags.contains("season") || !item.contains("seasonGroup") || !item["seasonGroup"].is_string()) {
+					continue;
+				}
+				const auto family = item["seasonGroup"].get<std::string>();
+				const int season = flags["season"].get<int>();
+				if (family.empty() || season < 0 || season > 3) {
+					continue;
+				}
+				auto& variants = seasonalGroups[family];
+				if (variants[season] != 0) {
+					throw std::runtime_error("Duplicate seasonal JSON item variant");
+				}
+				variants[season] = item.at("id").get<int>();
+			}
+		}
+		for (const auto& catalog : assets.catalogs) {
+			for (const auto& item : catalog.items) {
+				const auto flags = item.value("flags", nlohmann::json::object());
+				if (!flags.contains("season") || !item.contains("seasonGroup") || !item["seasonGroup"].is_string()) {
+					continue;
+				}
+				const auto found = seasonalGroups.find(item["seasonGroup"].get<std::string>());
+				if (found == seasonalGroups.end()) {
+					continue;
+				}
+				auto variants = found->second;
+				if (item.value("seasonFallback", false)) {
+					const auto first = std::find_if(variants.begin(), variants.end(), [](int id) { return id != 0; });
+					if (first != variants.end()) {
+						const int fallback = *first;
+						for (auto& variant : variants) {
+							if (variant == 0) {
+								variant = fallback;
+							}
+						}
+					}
+				}
+				previewItemVariants[item.at("id").get<int>()] = variants;
 			}
 		}
 		unloaded = false;

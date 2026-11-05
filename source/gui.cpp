@@ -1870,6 +1870,25 @@ bool GUI::IsIngamePreviewVisible() const {
 
 //=============================================================================
 
+void GUI::SetPreviewSeason(int season) {
+	if (season < -1 || season > 3 || gfx.GetPreviewSeason() == season) {
+		return;
+	}
+	gfx.SetPreviewSeason(season);
+	if (tabbook) {
+		// Refresh views sharing the active resource session, including hidden tabs.
+		const auto activeSession = GetActiveEditorResourceSession();
+		for (int32_t index = 0; index < tabbook->GetTabCount(); ++index) {
+			auto* mapTab = dynamic_cast<MapTab*>(tabbook->GetTab(index));
+			if (mapTab && mapTab->GetResourceSession() == activeSession && mapTab->GetView() && mapTab->GetView()->GetCanvas()) {
+				mapTab->GetView()->GetCanvas()->Refresh();
+			}
+		}
+	}
+	UpdateIngamePreview();
+	UpdateMenus();
+}
+
 void GUI::RefreshView() {
 	EditorTab* editorTab = GetCurrentTab();
 	if (!editorTab) {

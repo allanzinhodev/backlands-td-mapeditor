@@ -340,6 +340,8 @@ public:
 	void SetScreenCenterPosition(const Position& pos, bool showIndicator = true);
 	// Refresh the view canvas
 	void RefreshView();
+	// Changes rendered variants in the active resource session; placed IDs remain intact.
+	void SetPreviewSeason(int season);
 	// Fit all/specified current map view to map dimensions
 	void FitViewToMap();
 	void FitViewToMap(MapTab* mt);
